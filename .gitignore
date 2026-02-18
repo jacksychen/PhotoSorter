@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+
+# macOS
+.DS_Store
+
+# Test photo directories (contain actual images)
+test_photos/
+test_photo_*/
+test_photos_linked/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Third-party tools cloned into project
+everything-claude-code/
