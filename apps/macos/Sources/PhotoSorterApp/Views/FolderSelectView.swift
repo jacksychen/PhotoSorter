@@ -52,18 +52,6 @@ struct FolderSelectView: View {
                     .controlSize(.large)
                     .keyboardShortcut("o", modifiers: [.command])
 
-                    // Selected folder indicator
-                    if let inputDir = appState.inputDir {
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                            PathControlView(url: inputDir)
-                                .frame(maxWidth: 340)
-                        }
-                        .font(.subheadline)
-                        .padding(.top, 12)
-                    }
-
                     Spacer()
                 }
                 .padding(.horizontal, 40)
@@ -94,15 +82,6 @@ struct FolderSelectView: View {
             }
             .animation(.easeInOut(duration: 0.2), value: isDropTargeted)
             .navigationTitle("PhotoSorter")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        isFolderImporterPresented = true
-                    } label: {
-                        Label("Open…", systemImage: "folder")
-                    }
-                }
-            }
         }
         .fileImporter(
             isPresented: $isFolderImporterPresented,
