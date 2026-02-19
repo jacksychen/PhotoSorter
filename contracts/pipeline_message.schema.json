@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contracts/pipeline_message.schema.json",
+  "title": "PhotoSorter Bridge Message",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["progress", "complete", "error", "manifest"]
+    },
+    "step": {
+      "type": "string",
+      "enum": ["discover", "model", "embed", "similarity", "cluster", "output"]
+    },
+    "detail": {
+      "type": "string"
+    },
+    "processed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "total": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "manifest_path": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "exists": {
+      "type": "boolean"
+    },
+    "path": {
+      "type": "string"
+    }
+  },
+  "required": ["type"]
+}

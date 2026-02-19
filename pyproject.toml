@@ -23,12 +23,18 @@ test = ["pytest>=7.0"]
 
 [project.scripts]
 photosorter = "photosorter.main:main"
+photosorter-json = "photosorter_bridge.cli_json:main"
+
+[tool.setuptools.packages.find]
+where = ["engine/photosorter_core", "engine/photosorter_bridge"]
+include = ["photosorter", "photosorter.*", "photosorter_bridge", "photosorter_bridge.*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/python"]
+pythonpath = ["engine/photosorter_core", "engine/photosorter_bridge"]
 
 [tool.coverage.run]
-source = ["photosorter"]
+source = ["photosorter", "photosorter_bridge"]
 branch = true
 
 [tool.coverage.report]

@@ -4,12 +4,18 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.coverage
+.pytest_cache/
 
 # Virtual environment
 .venv/
 
 # macOS
 .DS_Store
+
+# SwiftPM build output
+.build/
+**/.build/
 
 # Test photo directories (contain actual images)
 test_photos/
