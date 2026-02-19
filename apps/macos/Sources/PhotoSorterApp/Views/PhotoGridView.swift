@@ -29,6 +29,7 @@ struct PhotoGridView: View {
     @State private var pendingMarkPhotoPath: String? = nil
     @State private var markErrorMessage: String? = nil
     @State private var estimatedGridColumnCount: Int = 1
+    @State private var visiblePhotoEntries: [PhotoEntry] = []
 
     private struct PhotoEntry: Identifiable {
         let clusterIndex: Int
@@ -38,35 +39,8 @@ struct PhotoGridView: View {
         var id: String { photo.id }
     }
 
-    private var clusters: [ManifestResult.Cluster] {
-        appState.manifestResult?.clusters ?? []
-    }
-
-    private var photoEntries: [PhotoEntry] {
-        switch appState.selectedSidebarSelection {
-        case .allPhotos:
-            return clusters.enumerated().flatMap { clusterIndex, cluster in
-                cluster.photos.enumerated().map { photoIndex, photo in
-                    PhotoEntry(clusterIndex: clusterIndex, photoIndex: photoIndex, photo: photo)
-                }
-            }
-        case .checkedPhotos:
-            return clusters.enumerated().flatMap { clusterIndex, cluster in
-                cluster.photos.enumerated().compactMap { photoIndex, photo in
-                    guard photo.isChecked else { return nil }
-                    return PhotoEntry(clusterIndex: clusterIndex, photoIndex: photoIndex, photo: photo)
-                }
-            }
-        case .cluster(let clusterIndex):
-            guard clusterIndex >= 0, clusterIndex < clusters.count else { return [] }
-            return clusters[clusterIndex].photos.enumerated().map { photoIndex, photo in
-                PhotoEntry(clusterIndex: clusterIndex, photoIndex: photoIndex, photo: photo)
-            }
-        }
-    }
-
-    private var photos: [ManifestResult.Photo] {
-        photoEntries.map(\.photo)
+    private var photoCount: Int {
+        visiblePhotoEntries.count
     }
 
     private let cardMinimumWidth: CGFloat = 160
@@ -78,7 +52,7 @@ struct PhotoGridView: View {
     }
 
     var body: some View {
-        let entries = photoEntries
+        let entries = visiblePhotoEntries
         let selectedIndex = normalizedSelectedPhotoIndex(photoCount: entries.count)
 
         Group {
@@ -92,7 +66,8 @@ struct PhotoGridView: View {
                 GeometryReader { proxy in
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: gridSpacing) {
-                            ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                            ForEach(entries.indices, id: \.self) { index in
+                                let entry = entries[index]
                                 let photo = entry.photo
                                 PhotoCard(
                                     photo: photo,
@@ -104,6 +79,7 @@ struct PhotoGridView: View {
                                         toggleMarkedState(at: index)
                                     }
                                 )
+                                    .equatable()
                                     .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                     .onTapGesture {
                                         selectPhoto(at: index)
@@ -126,6 +102,7 @@ struct PhotoGridView: View {
             }
         }
         .onAppear {
+            refreshVisiblePhotoEntries()
             normalizeSelectedPhotoIndexForCurrentSelection()
             installKeyEventMonitorIfNeeded()
         }
@@ -134,8 +111,14 @@ struct PhotoGridView: View {
                 oldSelection: oldSelection,
                 newSelection: newSelection
             ) {
-                appState.selectedPhotoIndex = 0
+                setSelectedPhotoIndexIfNeeded(0)
             }
+            refreshVisiblePhotoEntries()
+            normalizeSelectedPhotoIndexForCurrentSelection()
+            syncDetailWindowToCurrentSelection()
+        }
+        .onChange(of: appState.manifestResult) { _, _ in
+            refreshVisiblePhotoEntries()
             normalizeSelectedPhotoIndexForCurrentSelection()
             syncDetailWindowToCurrentSelection()
         }
@@ -166,9 +149,10 @@ struct PhotoGridView: View {
     }
 
     private func openDetailWindow(at index: Int) {
-        guard !photos.isEmpty else { return }
+        guard photoCount > 0 else { return }
+        let photos = visiblePhotos()
         let targetIndex = min(max(index, 0), photos.count - 1)
-        appState.selectedPhotoIndex = targetIndex
+        setSelectedPhotoIndexIfNeeded(targetIndex)
 
         if let controller = detailWindowController {
             controller.update(photos: photos, currentIndex: targetIndex)
@@ -193,19 +177,20 @@ struct PhotoGridView: View {
 
     private func syncDetailWindowToCurrentSelection() {
         guard let controller = detailWindowController else { return }
-        guard !photos.isEmpty else {
+        guard photoCount > 0 else {
             controller.close()
             detailWindowController = nil
             return
         }
 
+        let photos = visiblePhotos()
         let targetIndex = normalizedSelectedPhotoIndex()
         controller.update(photos: photos, currentIndex: targetIndex)
     }
 
     private func selectPhoto(at index: Int) {
-        guard !photos.isEmpty else { return }
-        appState.selectedPhotoIndex = min(max(index, 0), photos.count - 1)
+        guard photoCount > 0 else { return }
+        setSelectedPhotoIndexIfNeeded(min(max(index, 0), photoCount - 1))
     }
 
     private func toggleMarkedState(at photoIndex: Int) {
@@ -219,12 +204,12 @@ struct PhotoGridView: View {
             return
         }
 
-        guard photoIndex >= 0, photoIndex < photoEntries.count else {
+        guard photoIndex >= 0, photoIndex < visiblePhotoEntries.count else {
             markErrorMessage = PhotoMarkingError.invalidSelection.localizedDescription
             return
         }
 
-        let entry = photoEntries[photoIndex]
+        let entry = visiblePhotoEntries[photoIndex]
         pendingMarkPhotoPath = entry.photo.originalPath
 
         Task {
@@ -240,8 +225,6 @@ struct PhotoGridView: View {
 
                 await MainActor.run {
                     appState.manifestResult = updatedManifest
-                    normalizeSelectedPhotoIndexForCurrentSelection()
-                    syncDetailWindowToCurrentSelection()
                     pendingMarkPhotoPath = nil
                 }
             } catch {
@@ -254,7 +237,7 @@ struct PhotoGridView: View {
     }
 
     private func normalizedSelectedPhotoIndex() -> Int {
-        normalizedSelectedPhotoIndex(photoCount: photoEntries.count)
+        normalizedSelectedPhotoIndex(photoCount: visiblePhotoEntries.count)
     }
 
     private func normalizedSelectedPhotoIndex(photoCount: Int) -> Int {
@@ -280,7 +263,7 @@ struct PhotoGridView: View {
 
     private func syncDetailWindowToSelectedPhoto() {
         guard let controller = detailWindowController else { return }
-        guard !photos.isEmpty else { return }
+        guard photoCount > 0 else { return }
         guard controller.window?.isVisible == true else { return }
 
         let targetIndex = normalizedSelectedPhotoIndex()
@@ -338,7 +321,7 @@ struct PhotoGridView: View {
         case .toggleQuickLook:
             toggleQuickLookFromSelection()
         case .toggleMark:
-            guard !photos.isEmpty else {
+            guard photoCount > 0 else {
                 NSSound.beep()
                 return
             }
@@ -347,18 +330,18 @@ struct PhotoGridView: View {
     }
 
     private func moveSelection(offset: Int) {
-        guard !photos.isEmpty else {
+        guard photoCount > 0 else {
             NSSound.beep()
             return
         }
 
         let currentIndex = normalizedSelectedPhotoIndex()
         let targetIndex = currentIndex + offset
-        guard targetIndex >= 0, targetIndex < photos.count else {
+        guard targetIndex >= 0, targetIndex < photoCount else {
             NSSound.beep()
             return
         }
-        appState.selectedPhotoIndex = targetIndex
+        setSelectedPhotoIndexIfNeeded(targetIndex)
     }
 
     private func updateEstimatedGridColumnCount(containerWidth: CGFloat) {
@@ -369,13 +352,13 @@ struct PhotoGridView: View {
     }
 
     private func toggleQuickLookFromSelection() {
-        guard !photos.isEmpty else {
+        guard photoCount > 0 else {
             NSSound.beep()
             return
         }
 
         let targetIndex = normalizedSelectedPhotoIndex()
-        appState.selectedPhotoIndex = targetIndex
+        setSelectedPhotoIndexIfNeeded(targetIndex)
 
         if detailWindowController?.window?.isVisible == true {
             detailWindowController?.close()
@@ -384,11 +367,55 @@ struct PhotoGridView: View {
 
         openDetailWindow(at: targetIndex)
     }
+
+    private func visiblePhotos() -> [ManifestResult.Photo] {
+        visiblePhotoEntries.map(\.photo)
+    }
+
+    private func setSelectedPhotoIndexIfNeeded(_ index: Int) {
+        if appState.selectedPhotoIndex != index {
+            appState.selectedPhotoIndex = index
+        }
+    }
+
+    private func refreshVisiblePhotoEntries() {
+        let clusters = appState.manifestResult?.clusters ?? []
+        visiblePhotoEntries = buildPhotoEntries(
+            from: clusters,
+            selection: appState.selectedSidebarSelection
+        )
+    }
+
+    private func buildPhotoEntries(
+        from clusters: [ManifestResult.Cluster],
+        selection: SidebarSelection
+    ) -> [PhotoEntry] {
+        switch selection {
+        case .allPhotos:
+            return clusters.enumerated().flatMap { clusterIndex, cluster in
+                cluster.photos.enumerated().map { photoIndex, photo in
+                    PhotoEntry(clusterIndex: clusterIndex, photoIndex: photoIndex, photo: photo)
+                }
+            }
+        case .checkedPhotos:
+            return clusters.enumerated().flatMap { clusterIndex, cluster in
+                cluster.photos.enumerated().compactMap { photoIndex, photo in
+                    guard photo.isChecked else { return nil }
+                    return PhotoEntry(clusterIndex: clusterIndex, photoIndex: photoIndex, photo: photo)
+                }
+            }
+        case .cluster(let clusterIndex):
+            guard clusterIndex >= 0, clusterIndex < clusters.count else { return [] }
+            return clusters[clusterIndex].photos.enumerated().map { photoIndex, photo in
+                PhotoEntry(clusterIndex: clusterIndex, photoIndex: photoIndex, photo: photo)
+            }
+        }
+    }
 }
 
 // MARK: - PhotoCard
 
-struct PhotoCard: View {
+struct PhotoCard: View, Equatable {
     let photo: ManifestResult.Photo
     let isSelected: Bool
     let isChecked: Bool
@@ -400,6 +427,15 @@ struct PhotoCard: View {
 
     /// Shared thumbnail loader for all cards.
     private static let loader = ThumbnailLoader()
+
+    static func == (lhs: PhotoCard, rhs: PhotoCard) -> Bool {
+        lhs.photo.id == rhs.photo.id &&
+        lhs.photo.filename == rhs.photo.filename &&
+        lhs.isSelected == rhs.isSelected &&
+        lhs.isChecked == rhs.isChecked &&
+        lhs.isMarking == rhs.isMarking &&
+        lhs.isToggleDisabled == rhs.isToggleDisabled
+    }
 
     var body: some View {
         VStack(spacing: 4) {
@@ -455,7 +491,6 @@ struct PhotoCard: View {
                 .frame(maxWidth: .infinity)
                 .foregroundStyle(isSelected ? .primary : .secondary)
         }
-        .animation(.easeOut(duration: 0.12), value: isSelected)
         .task(id: photo.originalPath) {
             thumbnailImage = await Self.loader.thumbnail(for: photo.originalPath)
         }

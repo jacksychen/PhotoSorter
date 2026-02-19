@@ -1,7 +1,7 @@
 import Foundation
 
 /// Decoded representation of the pipeline's manifest.json output.
-public struct ManifestResult: Codable, Sendable {
+public struct ManifestResult: Codable, Sendable, Equatable {
     public var version: Int?
     public var inputDir: String?
     public var total: Int?
@@ -28,7 +28,7 @@ public struct ManifestResult: Codable, Sendable {
         case total, parameters, clusters
     }
 
-    public struct ManifestParameters: Codable, Sendable {
+    public struct ManifestParameters: Codable, Sendable, Equatable {
         public var distanceThreshold: Double?
         public var temporalWeight: Double?
         public var linkage: String?
@@ -61,7 +61,7 @@ public struct ManifestResult: Codable, Sendable {
         }
     }
 
-    public struct Cluster: Codable, Identifiable, Sendable {
+    public struct Cluster: Codable, Identifiable, Sendable, Equatable {
         public var clusterId: Int
         public var count: Int
         public var photos: [Photo]
@@ -80,7 +80,7 @@ public struct ManifestResult: Codable, Sendable {
         }
     }
 
-    public struct Photo: Codable, Identifiable, Sendable {
+    public struct Photo: Codable, Identifiable, Sendable, Equatable {
         public static let checkedPrefix = "CHECK_"
 
         public var position: Int?
