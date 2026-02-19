@@ -44,12 +44,10 @@ def test_build_parser_run_defaults(tmp_path):
     assert args.temporal_weight == DEFAULTS.temporal_weight
 
 
-def test_build_parser_check_manifest(tmp_path):
+def test_build_parser_rejects_removed_check_manifest(tmp_path):
     parser = cli_json.build_parser()
-    args = parser.parse_args(["check-manifest", "--input-dir", str(tmp_path)])
-
-    assert args.command == "check-manifest"
-    assert args.input_dir == tmp_path
+    with pytest.raises(SystemExit):
+        parser.parse_args(["check-manifest", "--input-dir", str(tmp_path)])
 
 
 def test_emit_writes_json_line_and_flushes(monkeypatch):
@@ -146,31 +144,8 @@ def test_handle_run_error_emits_error_and_exits(monkeypatch, tmp_path):
     assert emitted == [{"type": "error", "message": "boom"}]
 
 
-def test_handle_check_manifest_exists(tmp_path, monkeypatch):
-    (tmp_path / DEFAULTS.manifest_filename).write_text("{}")
-    emitted: list[dict] = []
-    monkeypatch.setattr(cli_json, "_emit", lambda obj: emitted.append(obj))
-
-    cli_json._handle_check_manifest(argparse.Namespace(input_dir=tmp_path))
-
-    assert emitted == [{
-        "type": "manifest",
-        "exists": True,
-        "path": str((tmp_path / DEFAULTS.manifest_filename).resolve()),
-    }]
-
-
-def test_handle_check_manifest_missing(tmp_path, monkeypatch):
-    emitted: list[dict] = []
-    monkeypatch.setattr(cli_json, "_emit", lambda obj: emitted.append(obj))
-
-    cli_json._handle_check_manifest(argparse.Namespace(input_dir=tmp_path))
-
-    assert emitted == [{"type": "manifest", "exists": False}]
-
-
 def test_main_dispatches_run(monkeypatch, tmp_path):
-    called = {"setup": 0, "run": None, "check": None}
+    called = {"setup": 0, "run": None}
 
     class _FakeParser:
         def parse_args(self):
@@ -179,29 +154,8 @@ def test_main_dispatches_run(monkeypatch, tmp_path):
     monkeypatch.setattr(cli_json, "_setup_stderr_logging", lambda: called.__setitem__("setup", called["setup"] + 1))
     monkeypatch.setattr(cli_json, "build_parser", lambda: _FakeParser())
     monkeypatch.setattr(cli_json, "_handle_run", lambda args: called.__setitem__("run", args))
-    monkeypatch.setattr(cli_json, "_handle_check_manifest", lambda args: called.__setitem__("check", args))
 
     cli_json.main()
 
     assert called["setup"] == 1
     assert called["run"].command == "run"
-    assert called["check"] is None
-
-
-def test_main_dispatches_check_manifest(monkeypatch, tmp_path):
-    called = {"setup": 0, "run": None, "check": None}
-
-    class _FakeParser:
-        def parse_args(self):
-            return argparse.Namespace(command="check-manifest", input_dir=tmp_path)
-
-    monkeypatch.setattr(cli_json, "_setup_stderr_logging", lambda: called.__setitem__("setup", called["setup"] + 1))
-    monkeypatch.setattr(cli_json, "build_parser", lambda: _FakeParser())
-    monkeypatch.setattr(cli_json, "_handle_run", lambda args: called.__setitem__("run", args))
-    monkeypatch.setattr(cli_json, "_handle_check_manifest", lambda args: called.__setitem__("check", args))
-
-    cli_json.main()
-
-    assert called["setup"] == 1
-    assert called["run"] is None
-    assert called["check"].command == "check-manifest"

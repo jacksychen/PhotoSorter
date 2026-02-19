@@ -7,7 +7,7 @@
   "properties": {
     "type": {
       "type": "string",
-      "enum": ["progress", "complete", "error", "manifest"]
+      "enum": ["progress", "complete", "error"]
     },
     "step": {
       "type": "string",
@@ -28,12 +28,6 @@
       "type": "string"
     },
     "message": {
-      "type": "string"
-    },
-    "exists": {
-      "type": "boolean"
-    },
-    "path": {
       "type": "string"
     }
   },

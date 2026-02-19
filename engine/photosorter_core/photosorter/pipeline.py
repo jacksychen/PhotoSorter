@@ -27,6 +27,28 @@ BuildOrderFn = Callable[..., list[OrderedPhoto]]
 OutputFn = Callable[..., None]
 
 
+class PipelineArgumentError(ValueError):
+    """Raised when runtime pipeline parameters are invalid."""
+
+
+def validate_pipeline_parameters(
+    *,
+    distance_threshold: float,
+    temporal_weight: float,
+    batch_size: int,
+) -> None:
+    """Validate user-facing pipeline parameters.
+
+    This validation is shared by both CLI and JSON-bridge execution paths.
+    """
+    if distance_threshold <= 0:
+        raise PipelineArgumentError("--distance-threshold must be > 0")
+    if temporal_weight < 0:
+        raise PipelineArgumentError("--temporal-weight must be >= 0")
+    if batch_size < 1:
+        raise PipelineArgumentError("--batch-size must be >= 1")
+
+
 @dataclass(frozen=True)
 class PipelineOutcome:
     manifest_path: Path
@@ -55,6 +77,22 @@ def run_pipeline_shared(
         if on_progress is not None:
             on_progress(step, detail, processed, total)
 
+    device = getattr(args, "device", DEFAULTS.device)
+    batch_size = int(getattr(args, "batch_size", DEFAULTS.batch_size))
+    pooling = getattr(args, "pooling", DEFAULTS.pooling)
+    distance_threshold = float(
+        getattr(args, "distance_threshold", DEFAULTS.distance_threshold),
+    )
+    linkage = getattr(args, "linkage", DEFAULTS.linkage)
+    temporal_weight = float(
+        getattr(args, "temporal_weight", DEFAULTS.temporal_weight),
+    )
+    validate_pipeline_parameters(
+        distance_threshold=distance_threshold,
+        temporal_weight=temporal_weight,
+        batch_size=batch_size,
+    )
+
     input_dir = args.input_dir.resolve()
     if not input_dir.is_dir():
         raise FileNotFoundError(f"Input directory does not exist: {input_dir}")
@@ -69,8 +107,8 @@ def run_pipeline_shared(
 
     # Step 2 — load model
     emit("model", "Loading DINOv3 model…")
-    device = detect_device_fn(args.device)
-    model = load_model_fn(device)
+    resolved_device = detect_device_fn(device)
+    model = load_model_fn(resolved_device)
     emit("model", "Model loaded")
 
     # Step 3 — extract embeddings
@@ -90,11 +128,11 @@ def run_pipeline_shared(
 
     if has_on_batch:
         embeddings, valid_indices = extract_embeddings_fn(
-            paths, model, device, args.batch_size, args.pooling, on_batch=_on_batch,
+            paths, model, resolved_device, batch_size, pooling, on_batch=_on_batch,
         )
     else:
         embeddings, valid_indices = extract_embeddings_fn(
-            paths, model, device, args.batch_size, args.pooling,
+            paths, model, resolved_device, batch_size, pooling,
         )
     if len(valid_indices) < len(paths):
         skipped = len(paths) - len(valid_indices)
@@ -106,12 +144,12 @@ def run_pipeline_shared(
     # Step 4 — similarity & distance
     emit("similarity", "Computing similarity matrix…")
     sim = compute_similarity_matrix_fn(embeddings)
-    dist = compute_distance_matrix_fn(sim, args.temporal_weight)
+    dist = compute_distance_matrix_fn(sim, temporal_weight)
     emit("similarity", "Distance matrix ready")
 
     # Step 5 — clustering
     emit("cluster", "Clustering…")
-    result = cluster_fn(dist, args.distance_threshold, args.linkage)
+    result = cluster_fn(dist, distance_threshold, linkage)
     emit("cluster", f"{result.n_clusters} clusters found")
 
     # Step 6 — write manifest
@@ -126,12 +164,12 @@ def run_pipeline_shared(
         ordered,
         manifest_path,
         input_dir=input_dir,
-        distance_threshold=args.distance_threshold,
-        temporal_weight=args.temporal_weight,
-        linkage=args.linkage,
-        pooling=args.pooling,
-        batch_size=args.batch_size,
-        device=str(device),
+        distance_threshold=distance_threshold,
+        temporal_weight=temporal_weight,
+        linkage=linkage,
+        pooling=pooling,
+        batch_size=batch_size,
+        device=str(resolved_device),
     )
     emit("output", "Manifest written")
 

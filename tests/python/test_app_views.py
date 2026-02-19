@@ -25,7 +25,7 @@ class TestPhaseLogic:
         }
         (tmp_path / "manifest.json").write_text(json.dumps(manifest))
 
-        # Simulate the check that MainWindowController.folder_selected does
+        # Simulate the direct manifest probe used by FolderSelectView.
         manifest_path = tmp_path / "manifest.json"
         assert manifest_path.exists()
         data = json.loads(manifest_path.read_text())

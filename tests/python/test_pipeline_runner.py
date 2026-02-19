@@ -18,6 +18,7 @@ from photosorter_bridge.pipeline_runner import (
 from photosorter.clustering import ClusterResult
 from photosorter.config import DEFAULTS
 from photosorter.ordering import OrderedPhoto
+from photosorter.pipeline import PipelineArgumentError
 
 
 class TestBuildArgsNamespace:
@@ -69,8 +70,22 @@ class TestStepInfo:
 
 
 class TestRunPipelineWithProgress:
+    @staticmethod
+    def _args(input_dir: Path, **overrides) -> argparse.Namespace:
+        values = {
+            "input_dir": input_dir,
+            "device": "cpu",
+            "batch_size": 4,
+            "pooling": "cls",
+            "distance_threshold": 0.4,
+            "temporal_weight": 0.0,
+            "linkage": "average",
+        }
+        values.update(overrides)
+        return argparse.Namespace(**values)
+
     def test_missing_input_dir_raises(self, tmp_path):
-        args = argparse.Namespace(input_dir=tmp_path / "nonexistent")
+        args = self._args(tmp_path / "nonexistent")
         with pytest.raises(FileNotFoundError, match="does not exist"):
             run_pipeline_with_progress(args, lambda info: None)
 
@@ -79,8 +94,23 @@ class TestRunPipelineWithProgress:
 
         monkeypatch.setattr(runner_mod, "discover_images", lambda _d: [])
 
-        args = argparse.Namespace(input_dir=tmp_path)
+        args = self._args(tmp_path)
         with pytest.raises(FileNotFoundError, match="No images found"):
+            run_pipeline_with_progress(args, lambda info: None)
+
+    def test_invalid_distance_threshold_raises(self, tmp_path):
+        args = self._args(tmp_path, distance_threshold=0.0)
+        with pytest.raises(PipelineArgumentError, match="--distance-threshold must be > 0"):
+            run_pipeline_with_progress(args, lambda info: None)
+
+    def test_invalid_temporal_weight_raises(self, tmp_path):
+        args = self._args(tmp_path, temporal_weight=-0.1)
+        with pytest.raises(PipelineArgumentError, match="--temporal-weight must be >= 0"):
+            run_pipeline_with_progress(args, lambda info: None)
+
+    def test_invalid_batch_size_raises(self, tmp_path):
+        args = self._args(tmp_path, batch_size=0)
+        with pytest.raises(PipelineArgumentError, match="--batch-size must be >= 1"):
             run_pipeline_with_progress(args, lambda info: None)
 
     def test_happy_path_reports_all_steps(self, tmp_path, monkeypatch):

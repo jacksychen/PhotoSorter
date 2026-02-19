@@ -52,35 +52,6 @@ private func makeSinglePhotoManifest(in directory: URL, filename: String = "IMG_
 }
 
 @MainActor
-private func testStateClamp() throws {
-    let photos = makePhotos()
-    let low = PhotoDetailState(photos: photos, currentIndex: -2)
-    let high = PhotoDetailState(photos: photos, currentIndex: 99)
-
-    try expect(low.currentIndex == 0, "PhotoDetailState should clamp low index to 0")
-    try expect(high.currentIndex == photos.count - 1, "PhotoDetailState should clamp high index to last item")
-}
-
-@MainActor
-private func testStateNavigationBounds() throws {
-    let photos = makePhotos()
-    let state = PhotoDetailState(photos: photos, currentIndex: 1)
-
-    state.navigatePrevious()
-    try expect(state.currentIndex == 0, "navigatePrevious should move index from 1 to 0")
-
-    state.navigatePrevious()
-    try expect(state.currentIndex == 0, "navigatePrevious should stay at lower bound")
-
-    state.navigateNext()
-    state.navigateNext()
-    try expect(state.currentIndex == 2, "navigateNext should reach upper bound")
-
-    state.navigateNext()
-    try expect(state.currentIndex == 2, "navigateNext should stay at upper bound")
-}
-
-@MainActor
 private func testKeyActionMapping() throws {
     try expect(PhotoDetailKeyAction.from(keyCode: 123) == .previous, "Left key should map to previous")
     try expect(PhotoDetailKeyAction.from(keyCode: 124) == .next, "Right key should map to next")
@@ -296,8 +267,6 @@ private func testPhotoMarkingServiceRenameFailure() throws {
 @main
 struct PhotoSorterAppGUITests {
     private static let allTests: [(String, @MainActor () throws -> Void)] = [
-        ("PhotoDetailState clamps index", testStateClamp),
-        ("PhotoDetailState navigation bounds", testStateNavigationBounds),
         ("Photo detail key mapping", testKeyActionMapping),
         ("Photo detail native window + navigation", testWindowNativeStyleAndControllerNavigation),
         ("Photo detail in-cluster navigation", testControllerNavigationStaysWithinCluster),

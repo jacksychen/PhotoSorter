@@ -4,8 +4,6 @@ import Foundation
 enum PipelineRunnerError: LocalizedError {
     case pythonNotFound
     case processLaunchFailed(String)
-    case decodingFailed(String)
-    case pipelineError(String)
 
     var errorDescription: String? {
         switch self {
@@ -13,10 +11,6 @@ enum PipelineRunnerError: LocalizedError {
             return "Could not locate a Python executable. Ensure a .venv exists at the project root or python3 is in PATH."
         case .processLaunchFailed(let reason):
             return "Failed to launch pipeline process: \(reason)"
-        case .decodingFailed(let detail):
-            return "Failed to decode pipeline output: \(detail)"
-        case .pipelineError(let message):
-            return "Pipeline error: \(message)"
         }
     }
 }
@@ -166,78 +160,6 @@ final class PipelineRunner: Sendable {
         }
 
         return nil
-    }
-
-    // MARK: - Check manifest
-
-    /// Ask the Python pipeline whether a manifest already exists for `dir`.
-    ///
-    /// Runs: `python -m photosorter_bridge.cli_json check-manifest --input-dir <path>`
-    /// and parses the single JSON-line response.
-    func checkManifest(dir: URL) async throws -> (exists: Bool, path: String?) {
-        guard let python = findPythonExecutable() else {
-            throw PipelineRunnerError.pythonNotFound
-        }
-
-        let process = Process()
-        process.executableURL = python
-        process.arguments = ["-m", "photosorter_bridge.cli_json", "check-manifest", "--input-dir", dir.path]
-        process.currentDirectoryURL = projectRoot
-        process.environment = processEnvironment()
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        do {
-            try process.run()
-        } catch {
-            throw PipelineRunnerError.processLaunchFailed(error.localizedDescription)
-        }
-
-        // Read all of stdout.
-        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        // Consume stderr so the pipe doesn't block.
-        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-
-        if !stderrData.isEmpty, let stderrText = String(data: stderrData, encoding: .utf8) {
-            // Log stderr for debugging (non-fatal).
-            NSLog("[PipelineRunner] check-manifest stderr: %@", stderrText)
-        }
-
-        guard process.terminationStatus == 0 else {
-            let stderr = String(data: stderrData, encoding: .utf8) ?? "unknown error"
-            throw PipelineRunnerError.pipelineError(
-                "check-manifest exited with status \(process.terminationStatus): \(stderr)"
-            )
-        }
-
-        guard let line = String(data: stdoutData, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-              !line.isEmpty
-        else {
-            throw PipelineRunnerError.decodingFailed("Empty response from check-manifest")
-        }
-
-        guard let jsonData = line.data(using: .utf8) else {
-            throw PipelineRunnerError.decodingFailed("Could not encode response as UTF-8")
-        }
-
-        let decoder = JSONDecoder()
-        let message: PipelineMessage
-        do {
-            message = try decoder.decode(PipelineMessage.self, from: jsonData)
-        } catch {
-            throw PipelineRunnerError.decodingFailed(error.localizedDescription)
-        }
-
-        if message.type == .error {
-            throw PipelineRunnerError.pipelineError(message.message ?? "Unknown error from check-manifest")
-        }
-
-        return (exists: message.exists ?? false, path: message.path)
     }
 
     // MARK: - Run pipeline

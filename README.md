@@ -2,28 +2,29 @@
 
 PhotoSorter is a GUI-first macOS app for grouping and reordering travel photos by visual similarity.
 
-The product is split across:
-- SwiftUI desktop app (`apps/macos`) for UX/state/rendering
-- Python core pipeline (`engine/photosorter_core`) for model inference + clustering
-- Python bridge (`engine/photosorter_bridge`) for JSON-lines subprocess communication
+The project is split into:
+- SwiftUI desktop app: `apps/macos`
+- Python core pipeline: `engine/photosorter_core`
+- Python bridge (JSON Lines subprocess API): `engine/photosorter_bridge`
 
-## Current Runtime Architecture
+## Runtime Architecture (Current)
 
-### 1) App state machine (SwiftUI)
+### App phases
 
-The app uses four phases (`AppState.phase`):
+`AppState.phase` has four phases:
 1. `folderSelect`
 2. `parameters`
 3. `progress`
 4. `results`
 
-Current behavior when selecting a folder:
-- App first calls bridge `check-manifest` to detect whether a prior `manifest.json` exists.
-- If `manifest.json` exists and can be decoded, app jumps directly to `results` and back-fills parameter UI from the manifest.
-- If `manifest.json` exists but is invalid, app records an error message and proceeds to `parameters`.
-- If no manifest exists, app proceeds to `parameters`.
+### Folder selection behavior
 
-### 2) Pipeline execution model
+When a folder is selected, Swift currently checks `<input_dir>/manifest.json` directly:
+- If manifest exists and decodes: jump to `results` and hydrate parameter UI from manifest.
+- If manifest exists but is invalid: show warning and go to `parameters`.
+- If manifest is missing: go to `parameters`.
+
+### Pipeline execution behavior
 
 From the progress page, Swift launches:
 
@@ -31,9 +32,10 @@ From the progress page, Swift launches:
 python -m photosorter_bridge.cli_json run ...
 ```
 
-The bridge streams JSON lines to stdout (`progress`, `complete`, `error`), and Swift updates UI step states in real time.
+Bridge stdout streams one JSON object per line (`progress`, `complete`, `error`).
+Swift updates step UI in real time.
 
-Pipeline step identifiers are shared by Swift and Python:
+Shared step identifiers (Swift/Python):
 - `discover`
 - `model`
 - `embed`
@@ -41,51 +43,29 @@ Pipeline step identifiers are shared by Swift and Python:
 - `cluster`
 - `output`
 
-### 3) Python pipeline logic (actual order)
+### Core pipeline order
 
-The core pipeline (`photosorter.main.run_pipeline` / bridge runner) is:
-1. Discover images in the selected folder (top-level only, non-recursive), natural-sort by filename.
+1. Discover images in selected folder (top-level only, non-recursive), natural-sort by filename.
 2. Detect device (`auto` prefers MPS, else CPU).
-3. Load DINOv3 model via `timm` (`vit_huge_plus_patch16_dinov3.lvd1689m`).
-4. Extract and L2-normalize embeddings (with unreadable-file skipping).
-5. Build cosine similarity matrix, convert to distance matrix, optionally add temporal penalty.
+3. Load DINOv3 model from `timm` (`vit_huge_plus_patch16_dinov3.lvd1689m`).
+4. Extract and L2-normalize embeddings (skip unreadable files with warning).
+5. Build cosine similarity matrix; convert to distance matrix; optionally add temporal penalty.
 6. Run agglomerative clustering (`metric=precomputed`, configurable linkage + threshold).
-7. Build final ordered sequence (cluster order by earliest original index; preserve in-cluster original order).
-8. Write `manifest.json` to the input folder.
+7. Build ordered sequence (cluster order by earliest original index; keep original order inside each cluster).
+8. Write `manifest.json` to input folder.
 
-### 4) Output contract
+### Output artifact
 
-Primary artifact is `<input_dir>/manifest.json`, including:
+Primary artifact: `<input_dir>/manifest.json`
+
+Includes:
 - global metadata (`version`, `input_dir`, `total`)
 - run parameters (`distance_threshold`, `temporal_weight`, `linkage`, `pooling`, `batch_size`, `device`)
-- clustered ordered photo list (`cluster_id`, `count`, `photos[]`)
+- clustered photo list (`cluster_id`, `count`, `photos[]`)
 
-Minimal structure:
-
-```json
-{
-  "version": 1,
-  "input_dir": "/path/to/photos",
-  "total": 123,
-  "parameters": {},
-  "clusters": [
-    {
-      "cluster_id": 0,
-      "count": 10,
-      "photos": [
-        {
-          "position": 0,
-          "original_index": 5,
-          "filename": "IMG_0001.JPG",
-          "original_path": "/path/to/photos/IMG_0001.JPG"
-        }
-      ]
-    }
-  ]
-}
-```
-
-Important: current pipeline does **not** rename/move/copy photo files. It only writes the manifest used by the app UI.
+Important:
+- Core pipeline does not rename/move/copy photos.
+- The GUI "mark checked" action renames files by toggling `CHECK_` prefix and persists back to `manifest.json`.
 
 ## Supported Input Formats
 
@@ -95,40 +75,39 @@ Standard images:
 RAW images:
 - `.arw`, `.dng`, `.cr2`, `.cr3`, `.nef`, `.orf`, `.raf`, `.rw2`
 
-## Parameters (Current Defaults)
+## Default Parameters
 
-- `device`: `auto` (choices: `auto`, `mps`, `cpu`)
+- `device`: `auto` (`auto`, `mps`, `cpu`)
 - `batch_size`: `16` (min `1`)
-- `pooling`: `cls` (choices: `cls`, `avg`, `cls+avg`)
-- `distance_threshold`: `0.4` (must be `> 0`)
-- `linkage`: `average` (choices: `average`, `complete`, `single`)
-- `temporal_weight`: `0.0` (must be `>= 0`)
+- `pooling`: `cls` (`cls`, `avg`, `cls+avg`)
+- `distance_threshold`: `0.4` (`> 0`)
+- `linkage`: `average` (`average`, `complete`, `single`)
+- `temporal_weight`: `0.0` (`>= 0`)
 
-## Image Preprocessing Details
+## Image Preprocessing
 
-Before feature extraction, each image goes through:
+For each image:
 1. EXIF orientation handling.
-2. RAW decode via `rawpy` (for RAW formats, demosaic with `half_size=True`).
-3. Pre-scale for large inputs (`prescale_size=512` long edge).
-4. Transform pipeline: `Resize(256)` -> `CenterCrop(224)` -> `ToTensor()` -> ImageNet normalization.
-
-Unreadable files are skipped with warnings instead of failing the whole run.
+2. RAW decode via `rawpy` (RAW only, `half_size=True`).
+3. Pre-scale long edge to 512 when needed.
+4. `Resize(256) -> CenterCrop(224) -> ToTensor() -> ImageNet normalize`.
 
 ## Bridge Message Contract (JSON Lines)
 
-Bridge stdout emits one JSON object per line:
+Bridge emits one JSON object per line:
 - `progress`: `{type, step, detail, processed, total}`
 - `complete`: `{type, manifest_path}`
 - `error`: `{type, message}`
-- `manifest`: `{type, exists, path?}` (for `check-manifest`)
 
-See canonical schema definitions in `contracts/`.
+Schemas:
+- `contracts/pipeline_parameters.schema.json`
+- `contracts/pipeline_message.schema.json`
 
 ## Requirements
 
-- macOS 14+
+- macOS 26+ (Swift package currently sets `.macOS(.v26)`)
 - Python 3.10+
-- Xcode command line tools (for `swift`)
+- Xcode command line tools
 
 ## Setup
 
@@ -138,32 +117,34 @@ source .venv/bin/activate
 pip install -e ".[test]"
 ```
 
-First model load downloads DINOv3 weights via `timm` (large one-time download).
+First model load downloads DINOv3 weights via `timm` (one-time, large download).
 
 ## Run
 
-### 1) GUI (primary path)
+### GUI (primary path)
 
 ```bash
 swift run --package-path apps/macos PhotoSorterApp
 ```
 
-### 2) Build a double-clickable `.app`
+### Build app bundle
 
 ```bash
 ./scripts/package_macos_app.sh
 open "./dist/PhotoSorter.app"
 ```
 
-Notes:
-- The script builds a Release binary, wraps it into `dist/PhotoSorter.app`, and embeds `engine/` resources.
-- Runtime still needs Python + dependencies (`timm`, `torch`, etc.). By default, the bundled launcher will try:
-  1. `PHOTOSORTER_PYTHON` (if set)
-  2. nearest `.venv/bin/python` found by walking upward from the app bundle
-  3. `/usr/bin/python3`
-  4. `python3` in `PATH`
+Packaging notes:
+- Builds release executable and creates `dist/PhotoSorter.app`.
+- Copies `engine/` into app resources.
+- Runtime still needs an available Python interpreter with dependencies.
+- Bundled launcher resolves Python in this order:
+1. `PHOTOSORTER_PYTHON`
+2. nearest `.venv/bin/python` found by walking upward from bundle location
+3. `/usr/bin/python3`
+4. `python3` in `PATH`
 
-### 3) Core CLI
+### Core CLI
 
 ```bash
 photosorter /path/to/photos
@@ -175,28 +156,30 @@ or:
 python -m photosorter /path/to/photos
 ```
 
-### 4) JSON bridge CLI
+### Bridge CLI
 
 ```bash
 photosorter-json run --input-dir /path/to/photos
-photosorter-json check-manifest --input-dir /path/to/photos
 ```
 
-or module form:
+or:
 
 ```bash
 python -m photosorter_bridge.cli_json run --input-dir /path/to/photos
-python -m photosorter_bridge.cli_json check-manifest --input-dir /path/to/photos
 ```
-
-`check-manifest` is used by folder selection to decide whether to resume from an existing manifest.
 
 ## Tests
 
 Python:
 
 ```bash
-pytest
+./.venv/bin/pytest
+```
+
+Coverage report:
+
+```bash
+./.venv/bin/pytest --cov=photosorter --cov=photosorter_bridge --cov-report=term-missing
 ```
 
 Swift GUI logic checks:
@@ -204,13 +187,6 @@ Swift GUI logic checks:
 ```bash
 swift run --package-path apps/macos PhotoSorterAppGUITests
 ```
-
-## Contracts
-
-- `contracts/pipeline_parameters.schema.json`
-- `contracts/pipeline_message.schema.json`
-
-These JSON Schemas define the Swift↔Python bridge interface.
 
 ## Project Layout
 
@@ -220,24 +196,14 @@ apps/
     ├── Package.swift
     └── Sources/
         ├── PhotoSorterApp/          # SwiftUI UI/state/services/models
-        ├── PhotoSorterAppMain/      # @main application target
-        └── PhotoSorterAppGUITests/  # Swift executable test target
+        ├── PhotoSorterAppMain/      # @main executable
+        └── PhotoSorterAppGUITests/  # GUI logic test executable
 
 engine/
 ├── photosorter_core/
 │   └── photosorter/                 # Core pipeline + CLI
-│       ├── __main__.py
-│       ├── main.py
-│       ├── embeddings.py
-│       ├── similarity.py
-│       ├── clustering.py
-│       ├── ordering.py
-│       ├── pipeline.py
-│       └── output.py
 └── photosorter_bridge/
-    └── photosorter_bridge/          # JSON-lines bridge for subprocess integration
-        ├── cli_json.py
-        └── pipeline_runner.py
+    └── photosorter_bridge/          # JSON-lines bridge layer
 
 contracts/
 ├── pipeline_message.schema.json

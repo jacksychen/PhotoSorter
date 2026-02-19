@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import logging
 import sys
 from pathlib import Path
 
@@ -16,11 +15,13 @@ from photosorter.embeddings import (
 from photosorter.clustering import cluster
 from photosorter.ordering import build_ordered_sequence
 from photosorter.output import output_manifest
-from photosorter.pipeline import run_pipeline_shared
+from photosorter.pipeline import (
+    PipelineArgumentError,
+    run_pipeline_shared,
+    validate_pipeline_parameters,
+)
 from photosorter.similarity import compute_distance_matrix, compute_similarity_matrix
 from photosorter.utils import discover_images, setup_logging
-
-logger = logging.getLogger("photosorter")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -52,12 +53,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _validate_args(args: argparse.Namespace) -> None:
-    if args.distance_threshold <= 0:
-        raise SystemExit("Error: --distance-threshold must be > 0")
-    if args.temporal_weight < 0:
-        raise SystemExit("Error: --temporal-weight must be >= 0")
-    if args.batch_size < 1:
-        raise SystemExit("Error: --batch-size must be >= 1")
+    try:
+        validate_pipeline_parameters(
+            distance_threshold=float(args.distance_threshold),
+            temporal_weight=float(args.temporal_weight),
+            batch_size=int(args.batch_size),
+        )
+    except PipelineArgumentError as exc:
+        raise SystemExit(f"Error: {exc}") from exc
 
 
 def run_pipeline(args: argparse.Namespace) -> None:
@@ -78,7 +81,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
             output_manifest_fn=output_manifest,
             log=log,
         )
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, PipelineArgumentError) as exc:
         log.error("%s", exc)
         sys.exit(1)
 

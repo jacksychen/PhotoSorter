@@ -4,6 +4,7 @@ struct PipelineProgressView: View {
     @Environment(AppState.self) private var appState
 
     @State private var runTask: Task<Void, Never>? = nil
+    @State private var manifestLoadTask: Task<Void, Never>? = nil
 
     var body: some View {
         VStack(spacing: 24) {
@@ -74,6 +75,8 @@ struct PipelineProgressView: View {
         .onDisappear {
             runTask?.cancel()
             runTask = nil
+            manifestLoadTask?.cancel()
+            manifestLoadTask = nil
         }
     }
 
@@ -97,6 +100,11 @@ struct PipelineProgressView: View {
     // MARK: - Pipeline execution
 
     private func startPipeline() {
+        runTask?.cancel()
+        runTask = nil
+        manifestLoadTask?.cancel()
+        manifestLoadTask = nil
+
         guard let inputDir = appState.inputDir else {
             appState.errorMessage = "No folder selected. Please go back and choose a folder."
             return
@@ -136,6 +144,7 @@ struct PipelineProgressView: View {
         }
     }
 
+    @MainActor
     private func handleMessage(_ message: PipelineMessage) {
         switch message.type {
         case .progress:
@@ -174,31 +183,33 @@ struct PipelineProgressView: View {
             }
 
             let path = manifestPath
-            Task.detached {
+            manifestLoadTask?.cancel()
+            manifestLoadTask = Task {
+                defer { manifestLoadTask = nil }
                 do {
-                    let data = try Data(contentsOf: URL(fileURLWithPath: path))
+                    let data = try await Task.detached(priority: .userInitiated) {
+                        try Data(contentsOf: URL(fileURLWithPath: path))
+                    }.value
+                    guard !Task.isCancelled else { return }
                     let manifest = try JSONDecoder().decode(ManifestResult.self, from: data)
-                    await MainActor.run {
-                        appState.manifestResult = manifest
-                        appState.selectedSidebarSelection = .allPhotos
-                        appState.selectedPhotoIndex = 0
-                        appState.phase = .results
-                    }
+                    guard appState.phase == .progress else { return }
+                    appState.manifestResult = manifest
+                    appState.selectedSidebarSelection = .allPhotos
+                    appState.selectedPhotoIndex = 0
+                    appState.phase = .results
                 } catch {
-                    await MainActor.run {
-                        appState.errorMessage = "Failed to load manifest: \(error.localizedDescription)"
-                    }
+                    guard !Task.isCancelled else { return }
+                    guard appState.phase == .progress else { return }
+                    appState.errorMessage = "Failed to load manifest: \(error.localizedDescription)"
                 }
             }
 
         case .error:
             appState.errorMessage = message.message ?? "An unknown error occurred."
-
-        case .manifest:
-            break
         }
     }
 
+    @MainActor
     private func updateStepStates(current: StepKind) {
         let allSteps = StepKind.allCases
         guard let currentIndex = allSteps.firstIndex(of: current) else { return }

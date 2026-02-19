@@ -5,7 +5,6 @@ All logging and diagnostic output goes to stderr.
 
 Usage:
     python -m photosorter_bridge.cli_json run --input-dir /path [options]
-    python -m photosorter_bridge.cli_json check-manifest --input-dir /path
 """
 
 from __future__ import annotations
@@ -72,11 +71,6 @@ def _build_run_parser(subparsers: argparse._SubParsersAction) -> None:
     run_p.add_argument("--temporal-weight", type=float, default=DEFAULTS.temporal_weight)
 
 
-def _build_check_manifest_parser(subparsers: argparse._SubParsersAction) -> None:
-    check_p = subparsers.add_parser("check-manifest", help="Check if manifest.json exists")
-    check_p.add_argument("--input-dir", type=Path, required=True, help="Directory to check")
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="photosorter-json",
@@ -84,7 +78,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     _build_run_parser(subparsers)
-    _build_check_manifest_parser(subparsers)
     return parser
 
 
@@ -112,28 +105,12 @@ def _handle_run(args: argparse.Namespace) -> None:
     _emit({"type": "complete", "manifest_path": str(manifest_path)})
 
 
-def _handle_check_manifest(args: argparse.Namespace) -> None:
-    """Check whether manifest.json exists in the given directory."""
-    manifest_path = args.input_dir.resolve() / DEFAULTS.manifest_filename
-
-    if manifest_path.is_file():
-        _emit({"type": "manifest", "exists": True, "path": str(manifest_path)})
-    else:
-        _emit({"type": "manifest", "exists": False})
-
-
 def main() -> None:
     _setup_stderr_logging()
 
     parser = build_parser()
     args = parser.parse_args()
-
-    if args.command == "run":
-        _handle_run(args)
-        return
-
-    # argparse constrains this to "check-manifest".
-    _handle_check_manifest(args)
+    _handle_run(args)
 
 
 if __name__ == "__main__":  # pragma: no cover
