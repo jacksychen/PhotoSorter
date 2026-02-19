@@ -10,10 +10,13 @@ struct ParameterView: View {
             // MARK: - Selected folder info
             Section {
                 LabeledContent("Folder") {
-                    Text(appState.inputDir?.path ?? "No folder selected")
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .foregroundStyle(.secondary)
+                    if let inputURL = appState.inputDir {
+                        PathControlView(url: inputURL)
+                            .frame(maxWidth: 420)
+                    } else {
+                        Text("No folder selected")
+                            .foregroundStyle(.secondary)
+                    }
                 }
             } header: {
                 Text("Input")

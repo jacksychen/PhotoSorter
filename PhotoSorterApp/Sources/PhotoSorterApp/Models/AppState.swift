@@ -39,7 +39,7 @@ struct StepStatus: Identifiable {
 
 /// Global observable application state — single source of truth.
 @Observable
-final class AppState {
+public final class AppState {
     var phase: AppPhase = .folderSelect
 
     // Phase 1
@@ -58,6 +58,8 @@ final class AppState {
     // Phase 4
     var manifestResult: ManifestResult? = nil
     var selectedClusterIndex: Int = 0
+
+    public init() {}
 
     /// Reset progress state before starting a new pipeline run.
     func resetProgress() {

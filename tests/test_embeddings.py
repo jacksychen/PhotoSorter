@@ -113,6 +113,26 @@ def test_load_raw_applies_orientation(monkeypatch):
     assert img.size == (2, 3)
 
 
+def test_load_raw_without_orientation_keeps_original_size(monkeypatch):
+    class _FakeRaw:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def postprocess(self, half_size, use_camera_wb):
+            assert half_size is True
+            assert use_camera_wb is True
+            return np.zeros((2, 3, 3), dtype=np.uint8)
+
+    monkeypatch.setattr(emb_mod.rawpy, "imread", lambda _p: _FakeRaw())
+    monkeypatch.setattr(emb_mod, "_read_raw_orientation", lambda _p: None)
+
+    img = emb_mod._load_raw(Path("/tmp/no_orientation.cr2"))
+    assert img.size == (3, 2)
+
+
 def test_prescale_downsizes_large_image():
     img = Image.new("RGB", (2048, 1024))
     out = emb_mod._prescale(img)

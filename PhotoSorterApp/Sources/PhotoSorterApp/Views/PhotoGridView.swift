@@ -3,7 +3,7 @@ import SwiftUI
 struct PhotoGridView: View {
     @Environment(AppState.self) private var appState
 
-    @State private var selectedPhotoIndex: Int? = nil
+    @State private var detailWindowController: PhotoDetailWindowController? = nil
 
     private var photos: [ManifestResult.Photo] {
         let clusters = appState.manifestResult?.clusters ?? []
@@ -30,7 +30,7 @@ struct PhotoGridView: View {
                         ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
                             PhotoCard(photo: photo)
                                 .onTapGesture(count: 2) {
-                                    selectedPhotoIndex = index
+                                    openDetailWindow(at: index)
                                 }
                         }
                     }
@@ -38,33 +38,25 @@ struct PhotoGridView: View {
                 }
             }
         }
-        .sheet(item: sheetBinding) { wrapper in
-            PhotoDetailView(
-                photos: photos,
-                currentIndex: wrapper.index
-            )
-            .frame(minWidth: 700, minHeight: 500)
+        .onDisappear {
+            detailWindowController?.close()
+            detailWindowController = nil
         }
     }
 
-    /// Bridge `selectedPhotoIndex` to an identifiable binding for `.sheet(item:)`.
-    private var sheetBinding: Binding<IndexWrapper?> {
-        Binding<IndexWrapper?>(
-            get: {
-                guard let index = selectedPhotoIndex else { return nil }
-                return IndexWrapper(index: index)
-            },
-            set: { newValue in
-                selectedPhotoIndex = newValue?.index
-            }
-        )
-    }
-}
+    private func openDetailWindow(at index: Int) {
+        guard !photos.isEmpty else { return }
 
-/// A lightweight wrapper to make an `Int` index usable with `.sheet(item:)`.
-private struct IndexWrapper: Identifiable {
-    let index: Int
-    var id: Int { index }
+        if let controller = detailWindowController {
+            controller.update(photos: photos, currentIndex: index)
+            controller.show()
+            return
+        }
+
+        let controller = PhotoDetailWindowController(photos: photos, currentIndex: index)
+        detailWindowController = controller
+        controller.show()
+    }
 }
 
 // MARK: - PhotoCard

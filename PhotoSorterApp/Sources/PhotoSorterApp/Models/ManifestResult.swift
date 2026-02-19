@@ -1,28 +1,28 @@
 import Foundation
 
 /// Decoded representation of the pipeline's manifest.json output.
-struct ManifestResult: Decodable {
-    let version: Int?
-    let inputDir: String?
-    let total: Int?
-    let parameters: ManifestParameters?
-    let clusters: [Cluster]
+public struct ManifestResult: Decodable {
+    public let version: Int?
+    public let inputDir: String?
+    public let total: Int?
+    public let parameters: ManifestParameters?
+    public let clusters: [Cluster]
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case version
         case inputDir = "input_dir"
         case total, parameters, clusters
     }
 
-    struct ManifestParameters: Decodable {
-        let distanceThreshold: Double?
-        let temporalWeight: Double?
-        let linkage: String?
-        let pooling: String?
-        let batchSize: Int?
-        let device: String?
+    public struct ManifestParameters: Decodable {
+        public let distanceThreshold: Double?
+        public let temporalWeight: Double?
+        public let linkage: String?
+        public let pooling: String?
+        public let batchSize: Int?
+        public let device: String?
 
-        enum CodingKeys: String, CodingKey {
+        public enum CodingKeys: String, CodingKey {
             case distanceThreshold = "distance_threshold"
             case temporalWeight = "temporal_weight"
             case linkage, pooling
@@ -31,28 +31,35 @@ struct ManifestResult: Decodable {
         }
     }
 
-    struct Cluster: Decodable, Identifiable {
-        let clusterId: Int
-        let count: Int
-        let photos: [Photo]
+    public struct Cluster: Decodable, Identifiable {
+        public let clusterId: Int
+        public let count: Int
+        public let photos: [Photo]
 
-        var id: Int { clusterId }
+        public var id: Int { clusterId }
 
-        enum CodingKeys: String, CodingKey {
+        public enum CodingKeys: String, CodingKey {
             case clusterId = "cluster_id"
             case count, photos
         }
     }
 
-    struct Photo: Decodable, Identifiable {
-        let position: Int?
-        let originalIndex: Int?
-        let filename: String
-        let originalPath: String
+    public struct Photo: Decodable, Identifiable {
+        public let position: Int?
+        public let originalIndex: Int?
+        public let filename: String
+        public let originalPath: String
 
-        var id: String { originalPath }
+        public var id: String { originalPath }
 
-        enum CodingKeys: String, CodingKey {
+        public init(position: Int?, originalIndex: Int?, filename: String, originalPath: String) {
+            self.position = position
+            self.originalIndex = originalIndex
+            self.filename = filename
+            self.originalPath = originalPath
+        }
+
+        public enum CodingKeys: String, CodingKey {
             case position
             case originalIndex = "original_index"
             case filename

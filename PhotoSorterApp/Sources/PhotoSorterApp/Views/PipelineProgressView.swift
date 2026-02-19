@@ -14,19 +14,19 @@ struct PipelineProgressView: View {
                 .bold()
 
             // MARK: - Step list
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(appState.progressSteps) { stepStatus in
-                    HStack(spacing: 10) {
-                        stepIcon(for: stepStatus.state)
-                            .frame(width: 20)
-                        Text(stepStatus.step.displayName)
-                            .foregroundStyle(
-                                stepStatus.state == .pending ? .secondary : .primary
-                            )
-                    }
+            List(appState.progressSteps) { stepStatus in
+                HStack(spacing: 10) {
+                    stepIcon(for: stepStatus.state)
+                        .frame(width: 20)
+                    Text(stepStatus.step.displayName)
+                        .foregroundStyle(
+                            stepStatus.state == .pending ? .secondary : .primary
+                        )
                 }
             }
-            .frame(maxWidth: 300, alignment: .leading)
+            .listStyle(.inset(alternatesRowBackgrounds: true))
+            .frame(maxWidth: 360, minHeight: 220, maxHeight: 220)
+            .disabled(true)
 
             // MARK: - Detail and progress bar
             if !appState.currentDetail.isEmpty {

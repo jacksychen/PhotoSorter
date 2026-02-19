@@ -124,9 +124,11 @@ def main() -> None:
 
     if args.command == "run":
         _handle_run(args)
-    elif args.command == "check-manifest":
-        _handle_check_manifest(args)
+        return
+
+    # argparse constrains this to "check-manifest".
+    _handle_check_manifest(args)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

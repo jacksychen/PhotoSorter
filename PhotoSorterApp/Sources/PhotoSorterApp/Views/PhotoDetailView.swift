@@ -1,131 +1,125 @@
 import SwiftUI
 
-struct PhotoDetailView: View {
-    let photos: [ManifestResult.Photo]
+@Observable
+public final class PhotoDetailState {
+    public private(set) var photos: [ManifestResult.Photo]
+    public private(set) var currentIndex: Int
 
-    @State var currentIndex: Int
-    @State private var currentImage: NSImage? = nil
+    public var onCurrentPhotoChanged: ((ManifestResult.Photo) -> Void)?
 
-    @Environment(\.dismiss) private var dismiss
+    public init(photos: [ManifestResult.Photo], currentIndex: Int) {
+        precondition(!photos.isEmpty, "PhotoDetailState requires at least one photo")
+        self.photos = photos
+        self.currentIndex = Self.clampedIndex(currentIndex, count: photos.count)
+    }
 
-    private var currentPhoto: ManifestResult.Photo {
+    public var currentPhoto: ManifestResult.Photo {
         photos[currentIndex]
     }
 
+    public var canNavigatePrevious: Bool {
+        currentIndex > 0
+    }
+
+    public var canNavigateNext: Bool {
+        currentIndex < photos.count - 1
+    }
+
+    public func navigatePrevious() {
+        guard canNavigatePrevious else { return }
+        currentIndex -= 1
+        onCurrentPhotoChanged?(currentPhoto)
+    }
+
+    public func navigateNext() {
+        guard canNavigateNext else { return }
+        currentIndex += 1
+        onCurrentPhotoChanged?(currentPhoto)
+    }
+
+    public func update(photos: [ManifestResult.Photo], currentIndex: Int) {
+        guard !photos.isEmpty else { return }
+        self.photos = photos
+        self.currentIndex = Self.clampedIndex(currentIndex, count: photos.count)
+        onCurrentPhotoChanged?(currentPhoto)
+    }
+
+    private static func clampedIndex(_ index: Int, count: Int) -> Int {
+        min(max(index, 0), max(count - 1, 0))
+    }
+}
+
+struct PhotoDetailView: View {
+    @Bindable var state: PhotoDetailState
+
+    @State private var currentImage: NSImage? = nil
+
     var body: some View {
-        ZStack {
-            // Dark background
-            Color.black.ignoresSafeArea()
+        VStack(spacing: 0) {
+            ZStack {
+                Color(nsColor: .underPageBackgroundColor)
+                    .ignoresSafeArea()
 
-            // Full-size image
-            if let image = currentImage {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ProgressView()
-                    .controlSize(.large)
-                    .tint(.white)
-            }
-
-            // Bottom info bar
-            VStack {
-                Spacer()
-
-                HStack {
-                    Text(currentPhoto.filename)
-                        .font(.headline)
-                        .foregroundStyle(.white)
-
-                    Spacer()
-
-                    Text("\(currentIndex + 1) / \(photos.count)")
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.8))
+                if let image = currentImage {
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ProgressView()
+                        .controlSize(.large)
                 }
-                .padding()
-                .background(.black.opacity(0.6))
             }
 
-            // Navigation arrows overlay
-            HStack {
-                // Left arrow area
+            Divider()
+
+            HStack(spacing: 10) {
                 Button {
-                    navigatePrevious()
+                    state.navigatePrevious()
                 } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.title)
-                        .foregroundStyle(.white)
-                        .frame(width: 44, height: 44)
-                        .background(.black.opacity(0.3))
-                        .clipShape(Circle())
+                    Label("Previous", systemImage: "chevron.left")
                 }
-                .buttonStyle(.plain)
-                .opacity(currentIndex > 0 ? 1 : 0.3)
-                .disabled(currentIndex <= 0)
-                .padding(.leading, 16)
+                .disabled(!state.canNavigatePrevious)
+
+                Button {
+                    state.navigateNext()
+                } label: {
+                    Label("Next", systemImage: "chevron.right")
+                }
+                .disabled(!state.canNavigateNext)
 
                 Spacer()
 
-                // Right arrow area
-                Button {
-                    navigateNext()
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.title)
-                        .foregroundStyle(.white)
-                        .frame(width: 44, height: 44)
-                        .background(.black.opacity(0.3))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .opacity(currentIndex < photos.count - 1 ? 1 : 0.3)
-                .disabled(currentIndex >= photos.count - 1)
-                .padding(.trailing, 16)
+                Text(state.currentPhoto.filename)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Spacer()
+
+                Text("\(state.currentIndex + 1) / \(state.photos.count)")
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(.bar)
         }
-        .onKeyPress(.leftArrow) {
-            navigatePrevious()
-            return .handled
-        }
-        .onKeyPress(.rightArrow) {
-            navigateNext()
-            return .handled
-        }
-        .onKeyPress(.escape) {
-            dismiss()
-            return .handled
-        }
-        .task(id: currentIndex) {
+        .task(id: state.currentIndex) {
             await loadFullImage()
         }
     }
 
-    // MARK: - Navigation
-
-    private func navigatePrevious() {
-        guard currentIndex > 0 else { return }
-        currentIndex -= 1
-    }
-
-    private func navigateNext() {
-        guard currentIndex < photos.count - 1 else { return }
-        currentIndex += 1
-    }
-
-    // MARK: - Image loading
-
     private func loadFullImage() async {
         currentImage = nil
-        guard currentIndex >= 0, currentIndex < photos.count else { return }
-        let path = photos[currentIndex].originalPath
-        // Load off main thread to avoid blocking UI with large images.
+
+        guard state.currentIndex >= 0, state.currentIndex < state.photos.count else { return }
+        let path = state.photos[state.currentIndex].originalPath
+
         let image = await Task.detached(priority: .userInitiated) {
             NSImage(contentsOfFile: path)
         }.value
-        // Only update if still on the same photo.
-        if currentIndex < photos.count, photos[currentIndex].originalPath == path {
+
+        if state.currentIndex < state.photos.count, state.photos[state.currentIndex].originalPath == path {
             currentImage = image
         }
     }

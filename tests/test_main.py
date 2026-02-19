@@ -178,3 +178,49 @@ def test_run_pipeline_happy_path_with_skipped_images(tmp_path, monkeypatch):
     assert manifest_kwargs["batch_size"] == 8
     assert manifest_kwargs["device"] == "cpu"
     assert any(level == "warning" and "Skipped 1 unreadable images" in message for level, message in fake_log.records)
+
+
+def test_run_pipeline_happy_path_without_skipped_images(tmp_path, monkeypatch):
+    fake_log = _FakeLogger()
+    monkeypatch.setattr(main_mod, "setup_logging", lambda: fake_log)
+
+    discovered = [tmp_path / "a.jpg", tmp_path / "b.jpg"]
+
+    monkeypatch.setattr(main_mod, "discover_images", lambda _input_dir: discovered)
+    monkeypatch.setattr(main_mod, "detect_device", lambda _requested: "cpu")
+    monkeypatch.setattr(main_mod, "load_model", lambda _device: "fake-model")
+    monkeypatch.setattr(
+        main_mod,
+        "extract_embeddings",
+        lambda paths, model, device, batch_size, pooling: (
+            np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float64),
+            [0, 1],  # no skipped images
+        ),
+    )
+    monkeypatch.setattr(main_mod, "compute_similarity_matrix", lambda _emb: np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float64))
+    monkeypatch.setattr(main_mod, "compute_distance_matrix", lambda _sim, _w: np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.float64))
+    monkeypatch.setattr(main_mod, "cluster", lambda _dist, _th, _link: ClusterResult(labels=np.array([0, 1]), n_clusters=2))
+    monkeypatch.setattr(
+        main_mod,
+        "build_ordered_sequence",
+        lambda paths, labels: [
+            OrderedPhoto(position=0, original_index=0, path=paths[0], cluster_id=0),
+            OrderedPhoto(position=1, original_index=1, path=paths[1], cluster_id=1),
+        ],
+    )
+
+    output_calls = {}
+
+    def fake_output_manifest(ordered, output_path, **kwargs):
+        output_calls["ordered"] = list(ordered)
+        output_calls["path"] = output_path
+        output_calls["kwargs"] = kwargs
+
+    monkeypatch.setattr(main_mod, "output_manifest", fake_output_manifest)
+
+    args = _args(tmp_path)
+    main_mod.run_pipeline(args)
+
+    assert output_calls["path"] == tmp_path / DEFAULTS.manifest_filename
+    assert len(output_calls["ordered"]) == 2
+    assert not any(level == "warning" and "Skipped" in message for level, message in fake_log.records)

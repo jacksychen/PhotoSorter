@@ -2,109 +2,11 @@
   "": {
     "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/master.swiftdeps"
   },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/ContentView.swift": {
-    "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ContentView.d",
-    "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ContentView.swift.o",
-    "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ContentView~partial.swiftmodule",
-    "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ContentView.swiftdeps",
-    "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ContentView.dia"
-  },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/Models/AppState.swift": {
-    "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/AppState.d",
-    "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/AppState.swift.o",
-    "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/AppState~partial.swiftmodule",
-    "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/AppState.swiftdeps",
-    "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/AppState.dia"
-  },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/Models/ManifestResult.swift": {
-    "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ManifestResult.d",
-    "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ManifestResult.swift.o",
-    "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ManifestResult~partial.swiftmodule",
-    "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ManifestResult.swiftdeps",
-    "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ManifestResult.dia"
-  },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/Models/PipelineMessage.swift": {
-    "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineMessage.d",
-    "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineMessage.swift.o",
-    "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineMessage~partial.swiftmodule",
-    "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineMessage.swiftdeps",
-    "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineMessage.dia"
-  },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/Models/PipelineParameters.swift": {
-    "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineParameters.d",
-    "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineParameters.swift.o",
-    "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineParameters~partial.swiftmodule",
-    "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineParameters.swiftdeps",
-    "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineParameters.dia"
-  },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/PhotoSorterApp.swift": {
+  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterAppMain/PhotoSorterApp.swift": {
     "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoSorterApp.d",
     "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoSorterApp.swift.o",
     "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoSorterApp~partial.swiftmodule",
     "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoSorterApp.swiftdeps",
     "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoSorterApp.dia"
-  },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/Services/PipelineRunner.swift": {
-    "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineRunner.d",
-    "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineRunner.swift.o",
-    "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineRunner~partial.swiftmodule",
-    "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineRunner.swiftdeps",
-    "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineRunner.dia"
-  },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/Services/ThumbnailLoader.swift": {
-    "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ThumbnailLoader.d",
-    "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ThumbnailLoader.swift.o",
-    "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ThumbnailLoader~partial.swiftmodule",
-    "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ThumbnailLoader.swiftdeps",
-    "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ThumbnailLoader.dia"
-  },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/Views/ClusterSidebar.swift": {
-    "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ClusterSidebar.d",
-    "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ClusterSidebar.swift.o",
-    "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ClusterSidebar~partial.swiftmodule",
-    "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ClusterSidebar.swiftdeps",
-    "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ClusterSidebar.dia"
-  },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/Views/FolderSelectView.swift": {
-    "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/FolderSelectView.d",
-    "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/FolderSelectView.swift.o",
-    "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/FolderSelectView~partial.swiftmodule",
-    "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/FolderSelectView.swiftdeps",
-    "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/FolderSelectView.dia"
-  },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/Views/ParameterView.swift": {
-    "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ParameterView.d",
-    "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ParameterView.swift.o",
-    "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ParameterView~partial.swiftmodule",
-    "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ParameterView.swiftdeps",
-    "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ParameterView.dia"
-  },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/Views/PhotoDetailView.swift": {
-    "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoDetailView.d",
-    "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoDetailView.swift.o",
-    "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoDetailView~partial.swiftmodule",
-    "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoDetailView.swiftdeps",
-    "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoDetailView.dia"
-  },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/Views/PhotoGridView.swift": {
-    "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoGridView.d",
-    "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoGridView.swift.o",
-    "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoGridView~partial.swiftmodule",
-    "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoGridView.swiftdeps",
-    "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PhotoGridView.dia"
-  },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/Views/PipelineProgressView.swift": {
-    "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineProgressView.d",
-    "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineProgressView.swift.o",
-    "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineProgressView~partial.swiftmodule",
-    "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineProgressView.swiftdeps",
-    "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/PipelineProgressView.dia"
-  },
-  "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/Sources/PhotoSorterApp/Views/ResultView.swift": {
-    "dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ResultView.d",
-    "object": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ResultView.swift.o",
-    "swiftmodule": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ResultView~partial.swiftmodule",
-    "swift-dependencies": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ResultView.swiftdeps",
-    "diagnostics": "/Users/shengyichen/NLP/PhotoSorter Fresh/PhotoSorterApp/.build/arm64-apple-macosx/debug/PhotoSorterApp.build/ResultView.dia"
   }
 }
