@@ -180,7 +180,8 @@ struct PipelineProgressView: View {
                     let manifest = try JSONDecoder().decode(ManifestResult.self, from: data)
                     await MainActor.run {
                         appState.manifestResult = manifest
-                        appState.selectedClusterIndex = 0
+                        appState.selectedSidebarSelection = .allPhotos
+                        appState.selectedPhotoIndex = 0
                         appState.phase = .results
                     }
                 } catch {

@@ -56,13 +56,26 @@ struct PhotoDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ZStack {
-                Color(nsColor: .underPageBackgroundColor)
-                    .ignoresSafeArea()
+            imageCanvas
+            Divider()
+            footerBar
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+        .task(id: state.currentPhoto.id) {
+            await loadFullImage()
+        }
+    }
 
+    private var imageCanvas: some View {
+        ZStack {
+            Color(nsColor: .underPageBackgroundColor)
+
+            Group {
                 if let image = currentImage {
                     Image(nsImage: image)
                         .resizable()
+                        .interpolation(.high)
+                        .antialiased(true)
                         .aspectRatio(contentMode: .fit)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -70,50 +83,44 @@ struct PhotoDetailView: View {
                         .controlSize(.large)
                 }
             }
+            .padding(8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 
-            Divider()
-
-            HStack(spacing: 10) {
-                Button {
-                    state.navigatePrevious()
-                } label: {
-                    Label("Previous", systemImage: "chevron.left")
-                }
-                .disabled(!state.canNavigatePrevious)
-
-                Button {
-                    state.navigateNext()
-                } label: {
-                    Label("Next", systemImage: "chevron.right")
-                }
-                .disabled(!state.canNavigateNext)
-
-                Spacer()
-
-                Text(state.currentPhoto.filename)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                Spacer()
-
-                Text("\(state.currentIndex + 1) / \(state.photos.count)")
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+    private var footerBar: some View {
+        HStack(spacing: 16) {
+            Button {
+                state.navigatePrevious()
+            } label: {
+                Label("Previous", systemImage: "chevron.left")
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(.bar)
+            .buttonStyle(.bordered)
+            .disabled(!state.canNavigatePrevious)
+
+            Button {
+                state.navigateNext()
+            } label: {
+                Label("Next", systemImage: "chevron.right")
+            }
+            .buttonStyle(.bordered)
+            .disabled(!state.canNavigateNext)
+
+            Text("\(state.currentIndex + 1) / \(state.photos.count)")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
         }
-        .task(id: state.currentIndex) {
-            await loadFullImage()
-        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.bar)
     }
 
     private func loadFullImage() async {
-        currentImage = nil
-
         guard state.currentIndex >= 0, state.currentIndex < state.photos.count else { return }
         let path = state.photos[state.currentIndex].originalPath
+        currentImage = nil
 
         let image = await Task.detached(priority: .userInitiated) {
             NSImage(contentsOfFile: path)

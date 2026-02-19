@@ -29,6 +29,13 @@ enum StepState {
     case pending, active, done
 }
 
+/// Sidebar selection for filtering photos in results view.
+enum SidebarSelection: Hashable {
+    case allPhotos
+    case checkedPhotos
+    case cluster(Int)
+}
+
 /// Status of one pipeline step for the progress view.
 struct StepStatus: Identifiable {
     let step: StepKind
@@ -57,7 +64,8 @@ public final class AppState {
 
     // Phase 4
     var manifestResult: ManifestResult? = nil
-    var selectedClusterIndex: Int = 0
+    var selectedSidebarSelection: SidebarSelection = .allPhotos
+    var selectedPhotoIndex: Int = 0
 
     public init() {}
 

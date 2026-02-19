@@ -1,9 +1,9 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.2
 import PackageDescription
 
 let package = Package(
     name: "PhotoSorterApp",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v26)],
     targets: [
         .target(
             name: "PhotoSorterUI",
@@ -19,5 +19,6 @@ let package = Package(
             dependencies: ["PhotoSorterUI"],
             path: "Sources/PhotoSorterAppGUITests"
         ),
-    ]
+    ],
+    swiftLanguageModes: [.v5]
 )

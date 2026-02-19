@@ -148,7 +148,22 @@ First model load downloads DINOv3 weights via `timm` (large one-time download).
 swift run --package-path apps/macos PhotoSorterApp
 ```
 
-### 2) Core CLI
+### 2) Build a double-clickable `.app`
+
+```bash
+./scripts/package_macos_app.sh
+open "./dist/PhotoSorter.app"
+```
+
+Notes:
+- The script builds a Release binary, wraps it into `dist/PhotoSorter.app`, and embeds `engine/` resources.
+- Runtime still needs Python + dependencies (`timm`, `torch`, etc.). By default, the bundled launcher will try:
+  1. `PHOTOSORTER_PYTHON` (if set)
+  2. nearest `.venv/bin/python` found by walking upward from the app bundle
+  3. `/usr/bin/python3`
+  4. `python3` in `PATH`
+
+### 3) Core CLI
 
 ```bash
 photosorter /path/to/photos
@@ -160,7 +175,7 @@ or:
 python -m photosorter /path/to/photos
 ```
 
-### 3) JSON bridge CLI
+### 4) JSON bridge CLI
 
 ```bash
 photosorter-json run --input-dir /path/to/photos

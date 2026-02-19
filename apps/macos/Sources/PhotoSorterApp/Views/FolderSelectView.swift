@@ -4,66 +4,133 @@ import UniformTypeIdentifiers
 struct FolderSelectView: View {
     @Environment(AppState.self) private var appState
 
-    @State private var isTargeted = false
-    @State private var manifestCheckTask: Task<Void, Never>? = nil
+    @State private var isDropTargeted = false
+    @State private var isFolderImporterPresented = false
 
     var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
+        NavigationStack {
+            ZStack {
+                // Main content
+                VStack(spacing: 0) {
+                    Spacer()
 
-            Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 64))
-                .foregroundStyle(.tint)
+                    // Hero
+                    VStack(spacing: 16) {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.system(size: 52, weight: .thin))
+                            .foregroundStyle(.secondary)
+                            .symbolRenderingMode(.hierarchical)
 
-            Text("PhotoSorter")
-                .font(.largeTitle)
-                .bold()
+                        VStack(spacing: 6) {
+                            Text("Welcome")
+                                .font(.title.weight(.semibold))
 
-            Text("Reorder travel photos by visual similarity")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                            Text("Organize photos by visual similarity")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
 
-            Text("Choose a folder containing your photos to get started.")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+                    Spacer()
+                        .frame(height: 36)
 
-            Button("Choose Folder...") {
-                chooseFolder()
+                    // Drop zone with Liquid Glass
+                    dropZone
+                        .frame(maxWidth: 400)
+
+                    Spacer()
+                        .frame(height: 24)
+
+                    // Primary action
+                    Button {
+                        isFolderImporterPresented = true
+                    } label: {
+                        Label("Choose Folder…", systemImage: "folder")
+                            .frame(minWidth: 160)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .keyboardShortcut("o", modifiers: [.command])
+
+                    // Selected folder indicator
+                    if let inputDir = appState.inputDir {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            PathControlView(url: inputDir)
+                                .frame(maxWidth: 340)
+                        }
+                        .font(.subheadline)
+                        .padding(.top, 12)
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, 40)
+
+                // Full-window drag overlay
+                if isDropTargeted {
+                    ZStack {
+                        Rectangle()
+                            .fill(.ultraThinMaterial)
+
+                        VStack(spacing: 12) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 44))
+                                .foregroundStyle(Color.accentColor)
+
+                            Text("Release to open")
+                                .font(.title3.weight(.medium))
+                        }
+                    }
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+                }
             }
-            .controlSize(.large)
-            .buttonStyle(.borderedProminent)
-
-            Spacer()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+                handleDrop(providers)
+            }
+            .animation(.easeInOut(duration: 0.2), value: isDropTargeted)
+            .navigationTitle("PhotoSorter")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        isFolderImporterPresented = true
+                    } label: {
+                        Label("Open…", systemImage: "folder")
+                    }
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(
-                    isTargeted ? Color.accentColor : Color.clear,
-                    style: StrokeStyle(lineWidth: 3, dash: [8])
-                )
-                .padding(16)
-        )
-        .onDrop(of: [UTType.fileURL], isTargeted: $isTargeted) { providers in
-            handleDrop(providers)
-        }
-        .onDisappear {
-            manifestCheckTask?.cancel()
-            manifestCheckTask = nil
+        .fileImporter(
+            isPresented: $isFolderImporterPresented,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result,
+                  let url = urls.first else { return }
+            handleFolder(url)
         }
     }
 
-    // MARK: - Folder selection
+    // MARK: - Drop zone
 
-    private func chooseFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.message = "Select a folder containing photos"
-        if panel.runModal() == .OK, let url = panel.url {
-            handleFolder(url)
+    @ViewBuilder
+    private var dropZone: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "tray.and.arrow.down")
+                .font(.system(size: 24))
+                .foregroundStyle(.secondary)
+
+            Text("Drop a folder here")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity)
+        .frame(height: 100)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     // MARK: - Drop handling
@@ -95,57 +162,14 @@ struct FolderSelectView: View {
         appState.inputDir = url
         appState.errorMessage = nil
 
-        manifestCheckTask?.cancel()
-        manifestCheckTask = Task {
-            let runner = PipelineRunner()
-            do {
-                let result = try await runner.checkManifest(dir: url)
-                if Task.isCancelled { return }
-
-                if result.exists {
-                    let manifestURL: URL
-                    if let path = result.path {
-                        manifestURL = URL(fileURLWithPath: path)
-                    } else {
-                        manifestURL = url.appendingPathComponent("manifest.json")
-                    }
-
-                    if let manifest = loadManifest(from: manifestURL) {
-                        await MainActor.run {
-                            applyExistingManifest(manifest)
-                        }
-                    } else {
-                        await MainActor.run {
-                            appState.errorMessage = "Existing manifest.json could not be read and will be overwritten."
-                            appState.phase = .parameters
-                        }
-                    }
-                    return
-                }
-
-                await MainActor.run {
-                    appState.phase = .parameters
-                }
-            } catch {
-                if Task.isCancelled { return }
-                // Fallback to direct local check so folder selection still works
-                // even if bridge check-manifest command fails.
-                let fallbackURL = url.appendingPathComponent("manifest.json")
-                if let manifest = loadManifest(from: fallbackURL) {
-                    await MainActor.run {
-                        applyExistingManifest(manifest)
-                    }
-                } else if FileManager.default.fileExists(atPath: fallbackURL.path) {
-                    await MainActor.run {
-                        appState.errorMessage = "Existing manifest.json could not be read and will be overwritten."
-                        appState.phase = .parameters
-                    }
-                } else {
-                    await MainActor.run {
-                        appState.phase = .parameters
-                    }
-                }
-            }
+        let manifestURL = url.appendingPathComponent("manifest.json")
+        if let manifest = loadManifest(from: manifestURL) {
+            applyExistingManifest(manifest)
+        } else if FileManager.default.fileExists(atPath: manifestURL.path) {
+            appState.errorMessage = "Existing manifest.json could not be read and will be overwritten."
+            appState.phase = .parameters
+        } else {
+            appState.phase = .parameters
         }
     }
 
@@ -156,11 +180,11 @@ struct FolderSelectView: View {
         return try? JSONDecoder().decode(ManifestResult.self, from: data)
     }
 
-    @MainActor
     private func applyExistingManifest(_ manifest: ManifestResult) {
         appState.manifestResult = manifest
         extractParameters(from: manifest)
-        appState.selectedClusterIndex = 0
+        appState.selectedSidebarSelection = .allPhotos
+        appState.selectedPhotoIndex = 0
         appState.phase = .results
     }
 
