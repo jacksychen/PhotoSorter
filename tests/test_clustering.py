@@ -81,6 +81,13 @@ class TestCluster:
         assert result.n_clusters == 1
         assert result.labels[0] == 0
 
+    def test_empty_input_returns_empty_result(self):
+        dist = np.zeros((0, 0), dtype=np.float64)
+        result = cluster(dist, distance_threshold=0.5)
+
+        assert result.n_clusters == 0
+        assert result.labels.size == 0
+
     def test_labels_length_matches_input(self):
         groups = [0, 0, 1, 1, 2, 2, 2]
         dist = _make_block_distance(groups)

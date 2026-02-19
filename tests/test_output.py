@@ -86,3 +86,35 @@ class TestOutputManifest:
         manifest_path = tmp_path / "sub" / "dir" / "manifest.json"
         output_manifest([], manifest_path, input_dir=Path("/input"))
         assert manifest_path.exists()
+
+    def test_parameters_included_when_provided(self, tmp_path):
+        ordered = [_photo(0)]
+        manifest_path = tmp_path / "manifest.json"
+        output_manifest(
+            ordered,
+            manifest_path,
+            input_dir=Path("/input"),
+            distance_threshold=0.5,
+            temporal_weight=0.1,
+            linkage="complete",
+            pooling="cls+avg",
+            batch_size=32,
+            device="cuda",
+        )
+        data = json.loads(manifest_path.read_text())
+        assert "parameters" in data
+        params = data["parameters"]
+        assert params["distance_threshold"] == 0.5
+        assert params["temporal_weight"] == 0.1
+        assert params["linkage"] == "complete"
+        assert params["pooling"] == "cls+avg"
+        assert params["batch_size"] == 32
+        assert params["device"] == "cuda"
+
+    def test_parameters_empty_when_not_provided(self, tmp_path):
+        ordered = [_photo(0)]
+        manifest_path = tmp_path / "manifest.json"
+        output_manifest(ordered, manifest_path, input_dir=Path("/input"))
+        data = json.loads(manifest_path.read_text())
+        assert "parameters" in data
+        assert data["parameters"] == {}

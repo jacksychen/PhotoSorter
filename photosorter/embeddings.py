@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -138,17 +139,23 @@ def extract_embeddings(
     device: torch.device,
     batch_size: int = DEFAULTS.batch_size,
     pooling: str = DEFAULTS.pooling,
+    on_batch: Callable[[int, int], None] | None = None,
 ) -> tuple[np.ndarray, list[int]]:
     """Extract embeddings, skipping images that fail to load.
 
     Returns (embeddings, valid_indices) where valid_indices maps each
     embedding row back to the original index in *paths*.
+
+    If *on_batch* is provided, it is called after each batch with
+    (processed_count, total_count) for progress reporting.
     """
     transform = build_transform()
     all_embeddings: list[np.ndarray] = []
     valid_indices: list[int] = []
+    total = len(paths)
+    processed = 0
 
-    for start in tqdm(range(0, len(paths), batch_size), desc="Extracting embeddings"):
+    for start in tqdm(range(0, total, batch_size), desc="Extracting embeddings"):
         batch_paths = paths[start : start + batch_size]
         batch_tensors: list[torch.Tensor] = []
         batch_indices: list[int] = []
@@ -162,6 +169,9 @@ def extract_embeddings(
                 logger.warning("Skipping %s: %s", p.name, exc)
 
         if not batch_tensors:
+            processed += len(batch_paths)
+            if on_batch is not None:
+                on_batch(processed, total)
             continue
 
         batch = torch.stack(batch_tensors).to(device)
@@ -178,6 +188,10 @@ def extract_embeddings(
         emb = emb / norms
         all_embeddings.append(emb)
         valid_indices.extend(batch_indices)
+
+        processed += len(batch_paths)
+        if on_batch is not None:
+            on_batch(processed, total)
 
     if not all_embeddings:
         raise RuntimeError("No images could be loaded successfully")

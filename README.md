@@ -1,6 +1,6 @@
 # PhotoSorter
 
-A CLI tool that reorders travel photos by visual similarity. Photos taken in an A→B→C→B→A pattern get reorganized to A,A,B,B,C,C — no GPS or timestamp metadata required.
+A CLI and native macOS GUI tool that reorders travel photos by visual similarity. Photos taken in an A→B→C→B→A pattern get reorganized to A,A,B,B,C,C — no GPS or timestamp metadata required.
 
 Uses [DINOv3](https://github.com/facebookresearch/dinov3) ViT-H+/16 (840M params, 1280-dim embeddings) and agglomerative clustering to group visually similar photos, then outputs them in a coherent sequence.
 
@@ -25,7 +25,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 
-# Optional: install GUI viewer dependencies
+# Optional: install native macOS GUI dependencies (PyObjC)
 pip install -e ".[gui]"
 ```
 
@@ -33,7 +33,30 @@ pip install -e ".[gui]"
 
 ## Usage
 
-### Basic — cluster photos and write manifest
+### GUI — native macOS application
+
+```bash
+# Via entry point
+photosorter-gui
+
+# Or as a Python module
+python -m photosorter.app
+```
+
+The GUI walks through four phases:
+
+1. **Folder Selection** — an NSOpenPanel lets you choose a photo folder. If a `manifest.json` already exists in that folder, the app skips directly to the results view.
+2. **Parameter Configuration** — native macOS controls for all pipeline settings:
+   - **Device** — Auto / Apple GPU / CPU (NSSegmentedControl)
+   - **Batch size** — 1 to 4096 (NSStepper)
+   - **Pooling** — CLS / AVG / CLS+AVG (NSSegmentedControl)
+   - **Distance threshold** — 0.01 to 2.0 (NSSlider)
+   - **Linkage** — Average / Complete / Single (NSSegmentedControl)
+   - **Temporal weight** — 0.0 to 2.0 (NSSlider)
+3. **Pipeline Progress** — step-by-step progress display for all 6 pipeline stages: discover images, load model, extract embeddings (with per-batch progress), compute similarity, clustering, and write manifest.
+4. **Results Display** — an NSSplitView with a cluster sidebar on the left and a photo thumbnail grid on the right. Double-click a thumbnail to open a detail window with full-size preview and keyboard navigation (left/right arrows to browse, ESC to close).
+
+### CLI — cluster photos and write manifest
 
 ```bash
 python -m photosorter /path/to/photos
@@ -41,7 +64,7 @@ python -m photosorter /path/to/photos
 
 Writes `manifest.json` into the input directory with cluster assignments and ordering.
 
-### Change pooling strategy — control what features are compared
+#### Change pooling strategy — control what features are compared
 
 ```bash
 # Default: CLS token (high-level semantic similarity)
@@ -54,7 +77,7 @@ python -m photosorter /path/to/photos --pooling avg
 python -m photosorter /path/to/photos --pooling cls+avg
 ```
 
-### Adjust clustering granularity
+#### Adjust clustering granularity
 
 ```bash
 # Tighter clusters (more groups)
@@ -64,7 +87,7 @@ python -m photosorter /path/to/photos --distance-threshold 0.15
 python -m photosorter /path/to/photos --distance-threshold 0.5
 ```
 
-### Change linkage strategy
+#### Change linkage strategy
 
 ```bash
 # Strict — all photos in a cluster must be mutually similar
@@ -77,13 +100,13 @@ python -m photosorter /path/to/photos --linkage average
 python -m photosorter /path/to/photos --linkage single
 ```
 
-### Add temporal bias — prefer grouping consecutive photos
+#### Add temporal bias — prefer grouping consecutive photos
 
 ```bash
 python -m photosorter /path/to/photos --temporal-weight 0.2
 ```
 
-### Combined example
+#### Combined example
 
 ```bash
 python -m photosorter /path/to/photos \
@@ -172,16 +195,29 @@ At `--temporal-weight 0.0` (default), only visual similarity matters. Set to `0.
 
 ```
 photosorter/
-├── __init__.py       # Package marker, version
-├── __main__.py       # python -m photosorter entry point
-├── config.py         # Default constants (frozen dataclass), model config
-├── utils.py          # Logging, natural sort, image discovery
-├── embeddings.py     # DINOv3 inference via timm, pooling, EXIF handling, RAW decoding, pre-scaling, L2 normalization
-├── similarity.py     # Cosine similarity matrix → distance matrix, optional temporal penalty
-├── clustering.py     # Agglomerative clustering (configurable linkage)
-├── ordering.py       # Build ordered sequence from cluster labels
-├── output.py         # Manifest JSON output
-├── main.py           # CLI parser and pipeline orchestration
-└── gui.py            # PySide6 cluster viewer (optional dependency)
-pyproject.toml        # Package metadata and dependencies
+├── __init__.py            # Package marker, version
+├── __main__.py            # python -m photosorter entry point
+├── config.py              # Default constants (frozen dataclass), model config
+├── utils.py               # Logging, natural sort, image discovery
+├── embeddings.py          # DINOv3 inference via timm, pooling, EXIF handling, RAW decoding, pre-scaling, L2 normalization; optional on_batch callback for progress reporting
+├── similarity.py          # Cosine similarity matrix → distance matrix, optional temporal penalty
+├── clustering.py          # Agglomerative clustering (configurable linkage)
+├── ordering.py            # Build ordered sequence from cluster labels
+├── output.py              # Manifest JSON output
+├── main.py                # CLI parser and pipeline orchestration
+├── app/                   # Native macOS GUI (optional dependency: pyobjc)
+│   ├── __init__.py        # GUI entry point (main function)
+│   ├── __main__.py        # python -m photosorter.app entry point
+│   ├── app_delegate.py    # NSApplicationDelegate, app lifecycle
+│   ├── main_window.py     # Main NSWindow, view switching between phases
+│   ├── pipeline_runner.py # Runs the sorting pipeline on a background thread with progress callbacks
+│   ├── thumbnail_cache.py # Thumbnail generation and caching for the results grid
+│   ├── detail_window.py   # Full-size photo viewer with keyboard navigation (←/→/ESC)
+│   └── views/
+│       ├── __init__.py
+│       ├── folder_select_view.py   # Phase 1: NSOpenPanel folder chooser
+│       ├── parameter_view.py       # Phase 2: Pipeline parameter controls
+│       ├── progress_view.py        # Phase 3: Step-by-step pipeline progress
+│       └── result_view.py          # Phase 4: NSSplitView cluster sidebar + photo grid
+pyproject.toml             # Package metadata and dependencies
 ```

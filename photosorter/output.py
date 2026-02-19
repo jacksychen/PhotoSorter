@@ -16,6 +16,12 @@ def output_manifest(
     output_path: Path,
     *,
     input_dir: Path,
+    distance_threshold: float | None = None,
+    temporal_weight: float | None = None,
+    linkage: str | None = None,
+    pooling: str | None = None,
+    batch_size: int | None = None,
+    device: str | None = None,
 ) -> None:
     # Group photos by cluster
     grouped: dict[int, list[OrderedPhoto]] = {}
@@ -26,6 +32,18 @@ def output_manifest(
         "version": 1,
         "input_dir": str(input_dir),
         "total": len(ordered),
+        "parameters": {
+            k: v
+            for k, v in {
+                "distance_threshold": distance_threshold,
+                "temporal_weight": temporal_weight,
+                "linkage": linkage,
+                "pooling": pooling,
+                "batch_size": batch_size,
+                "device": device,
+            }.items()
+            if v is not None
+        },
         "clusters": [
             {
                 "cluster_id": cid,

@@ -98,7 +98,17 @@ def run_pipeline(args: argparse.Namespace) -> None:
 
     # Step 6: write manifest
     manifest_path = input_dir / DEFAULTS.manifest_filename
-    output_manifest(ordered, manifest_path, input_dir=input_dir)
+    output_manifest(
+        ordered,
+        manifest_path,
+        input_dir=input_dir,
+        distance_threshold=args.distance_threshold,
+        temporal_weight=args.temporal_weight,
+        linkage=args.linkage,
+        pooling=args.pooling,
+        batch_size=args.batch_size,
+        device=str(device),
+    )
 
     log.info("Done! %d photos → %d clusters", len(ordered), result.n_clusters)
 

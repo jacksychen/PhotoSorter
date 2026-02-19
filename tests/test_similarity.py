@@ -70,3 +70,8 @@ class TestComputeDistanceMatrix:
         assert dist_with_temp[0, -1] > 0.0
         # Diagonal should still be 0
         np.testing.assert_allclose(np.diag(dist_with_temp), 0.0)
+
+    def test_temporal_weight_single_photo_stays_zero(self):
+        sim = np.array([[1.0]])
+        dist = compute_distance_matrix(sim, temporal_weight=0.5)
+        np.testing.assert_allclose(dist, [[0.0]])
