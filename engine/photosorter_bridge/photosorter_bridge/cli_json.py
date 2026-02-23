@@ -17,10 +17,11 @@ from pathlib import Path
 
 from photosorter_bridge.pipeline_runner import (
     StepInfo,
-    build_args_namespace,
+    build_pipeline_params,
     run_pipeline_with_progress,
 )
 from photosorter.config import DEFAULTS
+from photosorter.pipeline import PipelineParams
 
 
 def _setup_stderr_logging() -> None:
@@ -62,6 +63,11 @@ def _build_run_parser(subparsers: argparse._SubParsersAction) -> None:
         default=DEFAULTS.pooling,
         choices=("cls", "avg", "cls+avg"),
     )
+    run_p.add_argument(
+        "--preprocess",
+        default=DEFAULTS.preprocess,
+        choices=("letterbox", "timm"),
+    )
     run_p.add_argument("--distance-threshold", type=float, default=DEFAULTS.distance_threshold)
     run_p.add_argument(
         "--linkage",
@@ -83,12 +89,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _handle_run(args: argparse.Namespace) -> None:
     """Execute the full pipeline, emitting JSON Lines progress to stdout."""
-    pipeline_args = build_args_namespace(
+    pipeline_params = build_pipeline_params(
         str(args.input_dir),
         {
             "device": args.device,
             "batch_size": args.batch_size,
             "pooling": args.pooling,
+            "preprocess": args.preprocess,
             "distance_threshold": args.distance_threshold,
             "linkage": args.linkage,
             "temporal_weight": args.temporal_weight,
@@ -96,13 +103,13 @@ def _handle_run(args: argparse.Namespace) -> None:
     )
 
     try:
-        run_pipeline_with_progress(pipeline_args, on_progress=_on_progress)
+        outcome = run_pipeline_with_progress(pipeline_params, on_progress=_on_progress)
     except Exception as exc:
         _emit({"type": "error", "message": str(exc)})
         sys.exit(1)
 
-    manifest_path = args.input_dir.resolve() / DEFAULTS.manifest_filename
-    _emit({"type": "complete", "manifest_path": str(manifest_path)})
+    # Use manifest_path from outcome (DRY — no duplicate path calculation)
+    _emit({"type": "complete", "manifest_path": str(outcome.manifest_path)})
 
 
 def main() -> None:

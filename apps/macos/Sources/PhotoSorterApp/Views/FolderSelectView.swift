@@ -6,6 +6,7 @@ struct FolderSelectView: View {
 
     @State private var isDropTargeted = false
     @State private var isFolderImporterPresented = false
+    @State private var isLoadingManifest = false
 
     var body: some View {
         NavigationStack {
@@ -51,6 +52,7 @@ struct FolderSelectView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .keyboardShortcut("o", modifiers: [.command])
+                    .disabled(isLoadingManifest)
 
                     Spacer()
                 }
@@ -74,6 +76,11 @@ struct FolderSelectView: View {
                     .transition(.opacity)
                     .allowsHitTesting(false)
                 }
+
+                // Loading overlay
+                if isLoadingManifest {
+                    ProgressView("Loading manifest…")
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
@@ -81,16 +88,20 @@ struct FolderSelectView: View {
                 handleDrop(providers)
             }
             .animation(.easeInOut(duration: 0.2), value: isDropTargeted)
-            .navigationTitle("PhotoSorter")
+            .navigationTitle("Photo Sorter")
         }
         .fileImporter(
             isPresented: $isFolderImporterPresented,
             allowedContentTypes: [.folder],
             allowsMultipleSelection: false
         ) { result in
-            guard case .success(let urls) = result,
-                  let url = urls.first else { return }
-            handleFolder(url)
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                handleFolder(url)
+            case .failure(let error):
+                appState.errorMessage = "Could not open folder: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -117,7 +128,7 @@ struct FolderSelectView: View {
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
         guard let provider = providers.first else { return false }
 
-        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
             guard let data = item as? Data,
                   let url = URL(dataRepresentation: data, relativeTo: nil, isAbsolute: true)
             else { return }
@@ -127,7 +138,7 @@ struct FolderSelectView: View {
                   isDirectory.boolValue
             else { return }
 
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 handleFolder(url)
             }
         }
@@ -141,22 +152,33 @@ struct FolderSelectView: View {
         appState.inputDir = url
         appState.errorMessage = nil
 
-        let manifestURL = url.appendingPathComponent("manifest.json")
-        if let manifest = loadManifest(from: manifestURL) {
-            applyExistingManifest(manifest)
-        } else if FileManager.default.fileExists(atPath: manifestURL.path) {
-            appState.errorMessage = "Existing manifest.json could not be read and will be overwritten."
-            appState.phase = .parameters
-        } else {
-            appState.phase = .parameters
+        let manifestURL = PhotoSorterCachePaths.manifestURL(for: url)
+
+        // Load the manifest off the main thread to avoid UI stalls on large files.
+        isLoadingManifest = true
+        Task {
+            let manifest = await loadManifestAsync(from: manifestURL)
+            await MainActor.run {
+                isLoadingManifest = false
+                if let manifest {
+                    applyExistingManifest(manifest)
+                } else if FileManager.default.fileExists(atPath: manifestURL.path) {
+                    appState.errorMessage = "Existing manifest.json in PhotoSorter_Cache could not be read and will be overwritten."
+                    appState.phase = .parameters
+                } else {
+                    appState.phase = .parameters
+                }
+            }
         }
     }
 
-    private func loadManifest(from url: URL) -> ManifestResult? {
-        guard let data = try? Data(contentsOf: url) else {
-            return nil
-        }
-        return try? JSONDecoder().decode(ManifestResult.self, from: data)
+    private func loadManifestAsync(from url: URL) async -> ManifestResult? {
+        await Task.detached(priority: .userInitiated) {
+            guard let data = try? Data(contentsOf: url) else {
+                return nil
+            }
+            return try? JSONDecoder().decode(ManifestResult.self, from: data)
+        }.value
     }
 
     private func applyExistingManifest(_ manifest: ManifestResult) {
@@ -185,6 +207,11 @@ struct FolderSelectView: View {
         if let poolingStr = mp.pooling,
            let pooling = PipelineParameters.PoolingOption(rawValue: poolingStr) {
             params.pooling = pooling
+        }
+
+        if let preprocessStr = mp.preprocess,
+           let preprocess = PipelineParameters.PreprocessOption(rawValue: preprocessStr) {
+            params.preprocess = preprocess
         }
 
         if let threshold = mp.distanceThreshold {

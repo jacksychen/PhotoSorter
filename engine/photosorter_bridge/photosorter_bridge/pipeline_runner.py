@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
-import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -15,7 +13,7 @@ from photosorter.config import DEFAULTS
 from photosorter.embeddings import detect_device, extract_embeddings, load_model
 from photosorter.ordering import build_ordered_sequence
 from photosorter.output import output_manifest
-from photosorter.pipeline import run_pipeline_shared
+from photosorter.pipeline import PipelineOutcome, PipelineParams, run_pipeline_shared
 from photosorter.similarity import compute_distance_matrix, compute_similarity_matrix
 from photosorter.utils import discover_images
 
@@ -43,21 +41,35 @@ STEPS = (
 )
 
 
-def build_args_namespace(input_dir: str, parameters: dict[str, Any]) -> argparse.Namespace:
-    """Convert GUI parameters dict into an argparse.Namespace for the pipeline."""
+def build_pipeline_params(
+    input_dir: str, parameters: dict[str, Any]
+) -> PipelineParams:
+    """Convert GUI parameters dict into a validated PipelineParams.
+
+    Handles both display-label values (e.g. ``"Apple GPU"``) and raw
+    Python values (e.g. ``"mps"``), so callers from either the Swift
+    bridge layer or Python tests work transparently.
+    """
     device_map = {"Auto": "auto", "Apple GPU": "mps", "CPU": "cpu"}
     pooling_map = {"CLS": "cls", "AVG": "avg", "CLS+AVG": "cls+avg"}
+    preprocess_map = {
+        "Letterbox": "letterbox",
+        "TIMM": "timm",
+        "TIMM (strict)": "timm",
+    }
     linkage_map = {"Average": "average", "Complete": "complete", "Single": "single"}
 
     raw_device = parameters.get("device", "Auto")
-    raw_pooling = parameters.get("pooling", "CLS")
-    raw_linkage = parameters.get("linkage", "Average")
+    raw_pooling = parameters.get("pooling", "AVG")
+    raw_preprocess = parameters.get("preprocess", DEFAULTS.preprocess)
+    raw_linkage = parameters.get("linkage", DEFAULTS.linkage)
 
-    return argparse.Namespace(
+    return PipelineParams(
         input_dir=Path(input_dir),
         device=device_map.get(raw_device, raw_device),
         batch_size=int(parameters.get("batch_size", DEFAULTS.batch_size)),
         pooling=pooling_map.get(raw_pooling, raw_pooling),
+        preprocess=preprocess_map.get(raw_preprocess, raw_preprocess),
         distance_threshold=float(
             parameters.get("distance_threshold", DEFAULTS.distance_threshold),
         ),
@@ -68,17 +80,21 @@ def build_args_namespace(input_dir: str, parameters: dict[str, Any]) -> argparse
     )
 
 
+# Backward-compatible alias used by existing tests and cli_json
+build_args_namespace = build_pipeline_params
+
+
 def run_pipeline_with_progress(
-    args: argparse.Namespace,
+    params: PipelineParams,
     on_progress: Callable[[StepInfo], None],
-) -> dict:
+) -> PipelineOutcome:
     """Run the full pipeline, calling *on_progress* at each step.
 
-    Returns the parsed manifest dict on success.
+    Returns the PipelineOutcome on success (contains manifest_path).
     Raises on failure (the caller is responsible for catching exceptions).
     """
-    outcome = run_pipeline_shared(
-        args=args,
+    return run_pipeline_shared(
+        params=params,
         discover_images_fn=discover_images,
         detect_device_fn=detect_device,
         load_model_fn=load_model,
@@ -93,6 +109,3 @@ def run_pipeline_with_progress(
         ),
         log=logger,
     )
-
-    manifest_data = json.loads(outcome.manifest_path.read_text())
-    return manifest_data

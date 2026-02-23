@@ -3,8 +3,13 @@ import SwiftUI
 import PhotoSorterUI
 
 final class PhotoSorterAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         let app = NSApplication.shared
+        ProcessInfo.processInfo.processName = "Photo Sorter"
         app.setActivationPolicy(.regular)
     }
 
@@ -18,11 +23,26 @@ struct PhotoSorterApp: App {
     @NSApplicationDelegateAdaptor(PhotoSorterAppDelegate.self) private var appDelegate
     @State private var appState = AppState()
 
+    private func showAboutPanel() {
+        let credits = NSAttributedString(string: "Author: chenshengyi")
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        NSApplication.shared.orderFrontStandardAboutPanel(options: [
+            .credits: credits,
+        ])
+    }
+
     var body: some Scene {
-        WindowGroup {
+        WindowGroup("Photo Sorter") {
             ContentView()
                 .environment(appState)
         }
         .defaultSize(width: 1100, height: 720)
+        .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About Photo Sorter") {
+                    showAboutPanel()
+                }
+            }
+        }
     }
 }

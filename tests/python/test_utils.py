@@ -41,3 +41,55 @@ def test_setup_logging_configures_and_returns_photosorter_logger(monkeypatch):
     assert called["level"] == utils_mod.logging.INFO
     assert called["datefmt"] == "%H:%M:%S"
     assert "%(levelname)" in called["format"]
+
+
+def test_ensure_logging_calls_setup_when_no_handlers(monkeypatch):
+    class _FakeLogger:
+        def __init__(self, handlers):
+            self.handlers = list(handlers)
+
+        def addHandler(self, handler):
+            self.handlers.append(handler)
+
+        def removeHandler(self, handler):
+            if handler in self.handlers:
+                self.handlers.remove(handler)
+
+    photosorter_logger = _FakeLogger([])
+    root_logger = _FakeLogger([])
+    calls = {"n": 0}
+
+    def fake_get_logger(name=None):
+        return photosorter_logger if name == "photosorter" else root_logger
+
+    monkeypatch.setattr(utils_mod.logging, "getLogger", fake_get_logger)
+    monkeypatch.setattr(utils_mod, "setup_logging", lambda: calls.__setitem__("n", calls["n"] + 1))
+
+    utils_mod.ensure_logging()
+    assert calls["n"] == 1
+
+
+def test_ensure_logging_is_noop_when_handlers_exist(monkeypatch):
+    class _FakeLogger:
+        def __init__(self, handlers):
+            self.handlers = list(handlers)
+
+        def addHandler(self, handler):
+            self.handlers.append(handler)
+
+        def removeHandler(self, handler):
+            if handler in self.handlers:
+                self.handlers.remove(handler)
+
+    photosorter_logger = _FakeLogger([object()])
+    root_logger = _FakeLogger([])
+    calls = {"n": 0}
+
+    def fake_get_logger(name=None):
+        return photosorter_logger if name == "photosorter" else root_logger
+
+    monkeypatch.setattr(utils_mod.logging, "getLogger", fake_get_logger)
+    monkeypatch.setattr(utils_mod, "setup_logging", lambda: calls.__setitem__("n", calls["n"] + 1))
+
+    utils_mod.ensure_logging()
+    assert calls["n"] == 0

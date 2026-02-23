@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import inspect
 import logging
 from collections.abc import Callable
@@ -13,6 +12,7 @@ from typing import Any
 import numpy as np
 
 from photosorter.config import DEFAULTS
+from photosorter.cache_paths import manifest_path_for_input
 from photosorter.ordering import OrderedPhoto
 
 ProgressCallback = Callable[[str, str, int, int], None]
@@ -26,9 +26,44 @@ ClusterFn = Callable[[np.ndarray, float, str], Any]
 BuildOrderFn = Callable[..., list[OrderedPhoto]]
 OutputFn = Callable[..., None]
 
+# Valid values for categorical parameters
+VALID_POOLING_OPTIONS = frozenset({"cls", "avg", "cls+avg"})
+VALID_PREPROCESS_OPTIONS = frozenset({"letterbox", "timm"})
+VALID_LINKAGE_OPTIONS = frozenset({"average", "complete", "single"})
+VALID_DEVICE_OPTIONS = frozenset({"auto", "cpu", "mps", "cuda"})
+
 
 class PipelineArgumentError(ValueError):
     """Raised when runtime pipeline parameters are invalid."""
+
+
+@dataclass(frozen=True)
+class PipelineParams:
+    """Typed, validated pipeline parameters — replaces raw argparse.Namespace.
+
+    All callers (CLI, bridge, tests) should construct this instead of
+    passing an ``argparse.Namespace``.
+    """
+
+    input_dir: Path
+    device: str = DEFAULTS.device
+    batch_size: int = DEFAULTS.batch_size
+    pooling: str = DEFAULTS.pooling
+    preprocess: str = DEFAULTS.preprocess
+    distance_threshold: float = DEFAULTS.distance_threshold
+    linkage: str = DEFAULTS.linkage
+    temporal_weight: float = DEFAULTS.temporal_weight
+
+    def __post_init__(self) -> None:
+        validate_pipeline_parameters(
+            distance_threshold=self.distance_threshold,
+            temporal_weight=self.temporal_weight,
+            batch_size=self.batch_size,
+            pooling=self.pooling,
+            preprocess=self.preprocess,
+            linkage=self.linkage,
+            device=self.device,
+        )
 
 
 def validate_pipeline_parameters(
@@ -36,6 +71,10 @@ def validate_pipeline_parameters(
     distance_threshold: float,
     temporal_weight: float,
     batch_size: int,
+    pooling: str | None = None,
+    preprocess: str | None = None,
+    linkage: str | None = None,
+    device: str | None = None,
 ) -> None:
     """Validate user-facing pipeline parameters.
 
@@ -43,10 +82,31 @@ def validate_pipeline_parameters(
     """
     if distance_threshold <= 0:
         raise PipelineArgumentError("--distance-threshold must be > 0")
+    if distance_threshold > 2.0:
+        raise PipelineArgumentError(
+            "--distance-threshold must be <= 2.0 (cosine distance range)"
+        )
     if temporal_weight < 0:
         raise PipelineArgumentError("--temporal-weight must be >= 0")
     if batch_size < 1:
         raise PipelineArgumentError("--batch-size must be >= 1")
+    if pooling is not None and pooling not in VALID_POOLING_OPTIONS:
+        raise PipelineArgumentError(
+            f"--pooling must be one of {sorted(VALID_POOLING_OPTIONS)}, got '{pooling}'"
+        )
+    if preprocess is not None and preprocess not in VALID_PREPROCESS_OPTIONS:
+        raise PipelineArgumentError(
+            "--preprocess must be one of "
+            f"{sorted(VALID_PREPROCESS_OPTIONS)}, got '{preprocess}'"
+        )
+    if linkage is not None and linkage not in VALID_LINKAGE_OPTIONS:
+        raise PipelineArgumentError(
+            f"--linkage must be one of {sorted(VALID_LINKAGE_OPTIONS)}, got '{linkage}'"
+        )
+    if device is not None and device not in VALID_DEVICE_OPTIONS:
+        raise PipelineArgumentError(
+            f"--device must be one of {sorted(VALID_DEVICE_OPTIONS)}, got '{device}'"
+        )
 
 
 @dataclass(frozen=True)
@@ -58,7 +118,7 @@ class PipelineOutcome:
 
 def run_pipeline_shared(
     *,
-    args: argparse.Namespace,
+    params: PipelineParams,
     discover_images_fn: DiscoverFn,
     detect_device_fn: DeviceFn,
     load_model_fn: LoadModelFn,
@@ -77,23 +137,15 @@ def run_pipeline_shared(
         if on_progress is not None:
             on_progress(step, detail, processed, total)
 
-    device = getattr(args, "device", DEFAULTS.device)
-    batch_size = int(getattr(args, "batch_size", DEFAULTS.batch_size))
-    pooling = getattr(args, "pooling", DEFAULTS.pooling)
-    distance_threshold = float(
-        getattr(args, "distance_threshold", DEFAULTS.distance_threshold),
-    )
-    linkage = getattr(args, "linkage", DEFAULTS.linkage)
-    temporal_weight = float(
-        getattr(args, "temporal_weight", DEFAULTS.temporal_weight),
-    )
-    validate_pipeline_parameters(
-        distance_threshold=distance_threshold,
-        temporal_weight=temporal_weight,
-        batch_size=batch_size,
-    )
+    device = params.device
+    batch_size = params.batch_size
+    pooling = params.pooling
+    preprocess = params.preprocess
+    distance_threshold = params.distance_threshold
+    linkage = params.linkage
+    temporal_weight = params.temporal_weight
 
-    input_dir = args.input_dir.resolve()
+    input_dir = params.input_dir.resolve()
     if not input_dir.is_dir():
         raise FileNotFoundError(f"Input directory does not exist: {input_dir}")
 
@@ -119,21 +171,31 @@ def run_pipeline_shared(
         emit("embed", f"{processed}/{total}", processed, total)
 
     has_on_batch = False
+    has_preprocess = False
     try:
-        has_on_batch = "on_batch" in inspect.signature(extract_embeddings_fn).parameters
+        extract_params = inspect.signature(extract_embeddings_fn).parameters
+        has_on_batch = "on_batch" in extract_params
+        has_preprocess = "preprocess" in extract_params
     except (TypeError, ValueError):
         # Some callables (e.g. C-extensions or heavily wrapped functions) may not
         # expose a signature. In that case, use the basic call path.
         has_on_batch = False
+        has_preprocess = False
 
+    extract_kwargs: dict[str, Any] = {}
     if has_on_batch:
-        embeddings, valid_indices = extract_embeddings_fn(
-            paths, model, resolved_device, batch_size, pooling, on_batch=_on_batch,
-        )
-    else:
-        embeddings, valid_indices = extract_embeddings_fn(
-            paths, model, resolved_device, batch_size, pooling,
-        )
+        extract_kwargs["on_batch"] = _on_batch
+    if has_preprocess:
+        extract_kwargs["preprocess"] = preprocess
+
+    embeddings, valid_indices = extract_embeddings_fn(
+        paths,
+        model,
+        resolved_device,
+        batch_size,
+        pooling,
+        **extract_kwargs,
+    )
     if len(valid_indices) < len(paths):
         skipped = len(paths) - len(valid_indices)
         logger.warning("Skipped %d unreadable images", skipped)
@@ -159,7 +221,7 @@ def run_pipeline_shared(
         result.labels,
         original_indices=valid_indices,
     )
-    manifest_path = input_dir / DEFAULTS.manifest_filename
+    manifest_path = manifest_path_for_input(input_dir)
     output_manifest_fn(
         ordered,
         manifest_path,
@@ -168,6 +230,7 @@ def run_pipeline_shared(
         temporal_weight=temporal_weight,
         linkage=linkage,
         pooling=pooling,
+        preprocess=preprocess,
         batch_size=batch_size,
         device=str(resolved_device),
     )

@@ -19,25 +19,35 @@ public enum PhotoDetailKeyAction: Equatable {
 }
 
 private final class PhotoPreviewItem: NSObject, QLPreviewItem {
-    let previewItemURL: URL?
+    let originalURL: URL
+    let isRaw: Bool
+    var previewItemURL: URL?
     let previewItemTitle: String?
 
-    init(photo: ManifestResult.Photo) {
-        self.previewItemURL = URL(fileURLWithPath: photo.originalPath)
+    init(photo: ManifestResult.Photo, previewURL: URL?, isRaw: Bool) {
+        let originalURL = URL(fileURLWithPath: photo.originalPath)
+        self.originalURL = originalURL
+        self.isRaw = isRaw
+        self.previewItemURL = previewURL ?? originalURL
         self.previewItemTitle = photo.filename
         super.init()
     }
 }
 
+@MainActor
 public final class PhotoDetailWindowController: NSObject {
     private var previewItems: [PhotoPreviewItem]
     private var selectedIndex: Int
+    private var inputDir: URL?
     private let onCurrentIndexChanged: ((Int) -> Void)?
     private let onToggleMarkRequested: ((Int) -> Void)?
     private weak var panel: QLPreviewPanel?
     private var keyEventMonitor: Any?
     private var panelIndexObservation: NSKeyValueObservation?
     private var panelCloseObserver: NSObjectProtocol?
+    private var previewWarmupTask: Task<Void, Never>?
+
+    private let previewPrefetchRadius: Int = 3
 
     public var currentIndex: Int {
         selectedIndex
@@ -50,11 +60,13 @@ public final class PhotoDetailWindowController: NSObject {
     public init(
         photos: [ManifestResult.Photo],
         currentIndex: Int,
+        inputDir: URL? = nil,
         onCurrentIndexChanged: ((Int) -> Void)? = nil,
         onToggleMarkRequested: ((Int) -> Void)? = nil
     ) {
         precondition(!photos.isEmpty, "PhotoDetailWindowController requires at least one photo")
-        self.previewItems = photos.map(PhotoPreviewItem.init)
+        self.inputDir = inputDir
+        self.previewItems = Self.makePreviewItems(from: photos, inputDir: inputDir)
         self.selectedIndex = Self.clampedIndex(currentIndex, count: photos.count)
         self.onCurrentIndexChanged = onCurrentIndexChanged
         self.onToggleMarkRequested = onToggleMarkRequested
@@ -68,8 +80,21 @@ public final class PhotoDetailWindowController: NSObject {
     }
 
     deinit {
-        detachFromPanelIfNeeded()
-        removeKeyMonitor()
+        if let keyEventMonitor {
+            NSEvent.removeMonitor(keyEventMonitor)
+            self.keyEventMonitor = nil
+        }
+
+        panelIndexObservation?.invalidate()
+        panelIndexObservation = nil
+
+        if let panelCloseObserver {
+            NotificationCenter.default.removeObserver(panelCloseObserver)
+            self.panelCloseObserver = nil
+        }
+
+        previewWarmupTask?.cancel()
+        previewWarmupTask = nil
     }
 
     public func show() {
@@ -86,13 +111,16 @@ public final class PhotoDetailWindowController: NSObject {
         panel.reloadData()
         panel.currentPreviewItemIndex = selectedIndex
         panel.makeKeyAndOrderFront(nil)
+        applyBestAvailablePreviewURL(at: selectedIndex)
+        schedulePreviewWarmup(around: selectedIndex)
     }
 
-    public func update(photos: [ManifestResult.Photo], currentIndex: Int) {
+    public func update(photos: [ManifestResult.Photo], currentIndex: Int, inputDir: URL? = nil) {
         guard !photos.isEmpty else { return }
+        self.inputDir = inputDir
         let shouldReloadPreviewItems = needsPreviewItemsReload(with: photos)
         if shouldReloadPreviewItems {
-            previewItems = photos.map(PhotoPreviewItem.init)
+            previewItems = Self.makePreviewItems(from: photos, inputDir: inputDir)
         }
         setCurrentIndex(currentIndex)
 
@@ -103,6 +131,7 @@ public final class PhotoDetailWindowController: NSObject {
         if panel.currentPreviewItemIndex != selectedIndex {
             panel.currentPreviewItemIndex = selectedIndex
         }
+        schedulePreviewWarmup(around: selectedIndex)
     }
 
     public func setCurrentIndex(_ currentIndex: Int) {
@@ -116,9 +145,11 @@ public final class PhotoDetailWindowController: NSObject {
         }
 
         selectedIndex = targetIndex
+        applyBestAvailablePreviewURL(at: targetIndex)
         if let panel, panel.isVisible, panel.currentPreviewItemIndex != targetIndex {
             panel.currentPreviewItemIndex = targetIndex
         }
+        schedulePreviewWarmup(around: targetIndex)
     }
 
     public func handle(_ action: PhotoDetailKeyAction) {
@@ -152,10 +183,12 @@ public final class PhotoDetailWindowController: NSObject {
         let target = selectedIndex + offset
         if target >= 0, target < previewItems.count {
             selectedIndex = target
+            applyBestAvailablePreviewURL(at: target)
             if let panel, panel.currentPreviewItemIndex != selectedIndex {
                 panel.currentPreviewItemIndex = selectedIndex
             }
             onCurrentIndexChanged?(selectedIndex)
+            schedulePreviewWarmup(around: selectedIndex)
             return
         }
         // Keep keyboard navigation scoped to the current cluster.
@@ -209,12 +242,17 @@ public final class PhotoDetailWindowController: NSObject {
             object: panel,
             queue: .main
         ) { [weak self] _ in
-            self?.handlePanelClosed()
+            Task { @MainActor [weak self] in
+                self?.handlePanelClosed()
+            }
         }
 
         panelIndexObservation?.invalidate()
-        panelIndexObservation = panel.observe(\.currentPreviewItemIndex, options: [.new]) { [weak self] panel, _ in
-            self?.syncSelectionFromPanel(panel, panel.currentPreviewItemIndex)
+        panelIndexObservation = panel.observe(\.currentPreviewItemIndex, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor [weak self] in
+                guard let self, let panel = self.panel else { return }
+                self.syncSelectionFromPanel(panel, panel.currentPreviewItemIndex)
+            }
         }
     }
 
@@ -227,9 +265,13 @@ public final class PhotoDetailWindowController: NSObject {
         guard target != selectedIndex else { return }
         selectedIndex = target
         onCurrentIndexChanged?(selectedIndex)
+        applyBestAvailablePreviewURL(at: target)
+        schedulePreviewWarmup(around: target)
     }
 
     private func handlePanelClosed() {
+        previewWarmupTask?.cancel()
+        previewWarmupTask = nil
         detachFromPanelIfNeeded()
         panel = nil
     }
@@ -253,12 +295,112 @@ public final class PhotoDetailWindowController: NSObject {
 
         for (index, photo) in photos.enumerated() {
             let item = previewItems[index]
-            if item.previewItemURL?.path != photo.originalPath || item.previewItemTitle != photo.filename {
+            if item.originalURL.path != photo.originalPath || item.previewItemTitle != photo.filename {
                 return true
             }
         }
 
         return false
+    }
+
+    private static func makePreviewItems(from photos: [ManifestResult.Photo], inputDir: URL?) -> [PhotoPreviewItem] {
+        photos.map { photo in
+            let isRaw = ThumbnailLoader.supportsDetailProxy(for: photo.originalPath)
+            let originalURL = URL(fileURLWithPath: photo.originalPath)
+            let previewURL: URL?
+            if isRaw {
+                previewURL = ThumbnailLoader.cachedDetailProxyURLIfFresh(for: photo.originalPath, inputDir: inputDir)
+                    ?? ThumbnailLoader.cachedGridThumbURLIfFresh(for: photo.originalPath, inputDir: inputDir)
+                    ?? originalURL
+            } else {
+                previewURL = originalURL
+            }
+            return PhotoPreviewItem(photo: photo, previewURL: previewURL, isRaw: isRaw)
+        }
+    }
+
+    private func applyBestAvailablePreviewURL(at index: Int) {
+        guard index >= 0, index < previewItems.count else { return }
+        let item = previewItems[index]
+        let bestURL = bestAvailablePreviewURL(for: item)
+        guard item.previewItemURL?.path != bestURL.path else { return }
+        item.previewItemURL = bestURL
+        refreshPanelIfShowingItem(at: index)
+    }
+
+    private func bestAvailablePreviewURL(for item: PhotoPreviewItem) -> URL {
+        guard item.isRaw else { return item.originalURL }
+        if let inputDir {
+            if let detailURL = ThumbnailLoader.cachedDetailProxyURLIfFresh(for: item.originalURL.path, inputDir: inputDir) {
+                return detailURL
+            }
+            if let gridURL = ThumbnailLoader.cachedGridThumbURLIfFresh(for: item.originalURL.path, inputDir: inputDir) {
+                return gridURL
+            }
+        }
+        return item.originalURL
+    }
+
+    private func schedulePreviewWarmup(around centerIndex: Int) {
+        guard centerIndex >= 0, centerIndex < previewItems.count else { return }
+        previewWarmupTask?.cancel()
+        previewWarmupTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.warmPreviewProxies(around: centerIndex)
+        }
+    }
+
+    private func warmPreviewProxies(around centerIndex: Int) async {
+        guard let inputDir else { return }
+
+        let indices = previewWarmupIndices(around: centerIndex)
+        let loader = ThumbnailLoader.shared
+
+        for index in indices {
+            if Task.isCancelled { return }
+            guard index >= 0, index < previewItems.count else { continue }
+            let item = previewItems[index]
+            guard item.isRaw else { continue }
+
+            if index == centerIndex,
+               ThumbnailLoader.cachedGridThumbURLIfFresh(for: item.originalURL.path, inputDir: inputDir) == nil {
+                _ = await loader.thumbnail(for: item.originalURL.path, inputDir: inputDir)
+                guard !Task.isCancelled else { return }
+                applyBestAvailablePreviewURL(at: index)
+            }
+
+            if ThumbnailLoader.cachedDetailProxyURLIfFresh(for: item.originalURL.path, inputDir: inputDir) == nil {
+                _ = await loader.detailProxyURL(for: item.originalURL.path, inputDir: inputDir)
+                guard !Task.isCancelled else { return }
+                applyBestAvailablePreviewURL(at: index)
+            }
+        }
+    }
+
+    private func previewWarmupIndices(around centerIndex: Int) -> [Int] {
+        var indices: [Int] = [centerIndex]
+        if previewPrefetchRadius <= 0 { return indices }
+        for offset in 1...previewPrefetchRadius {
+            let next = centerIndex + offset
+            if next < previewItems.count {
+                indices.append(next)
+            }
+            let previous = centerIndex - offset
+            if previous >= 0 {
+                indices.append(previous)
+            }
+        }
+        return indices
+    }
+
+    private func refreshPanelIfShowingItem(at index: Int) {
+        guard let panel else { return }
+        guard panel.isVisible else { return }
+        guard panel.currentPreviewItemIndex == index else { return }
+        panel.reloadData()
+        if panel.currentPreviewItemIndex != index {
+            panel.currentPreviewItemIndex = index
+        }
     }
 
     private static func clampedIndex(_ index: Int, count: Int) -> Int {
@@ -267,13 +409,15 @@ public final class PhotoDetailWindowController: NSObject {
 }
 
 extension PhotoDetailWindowController: QLPreviewPanelDataSource {
-    public func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
-        previewItems.count
+    nonisolated public func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
+        MainActor.assumeIsolated { previewItems.count }
     }
 
-    public func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
-        guard index >= 0, index < previewItems.count else { return nil }
-        return previewItems[index]
+    nonisolated public func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
+        MainActor.assumeIsolated {
+            guard index >= 0, index < previewItems.count else { return nil }
+            return previewItems[index]
+        }
     }
 }
 

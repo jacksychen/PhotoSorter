@@ -193,9 +193,16 @@ private func testPhotoMarkingServiceToggleAndManifestPersistence() throws {
         try expect(marked.clusters[0].photos[0].filename == "CHECK_IMG_1.jpg", "Marking should prefix filename with CHECK_")
         try expect(fileManager.fileExists(atPath: checkedURL.path), "Marking should rename file on disk")
 
-        let persistedData = try Data(contentsOf: directory.appendingPathComponent("manifest.json"))
+        let persistedData = try Data(
+            contentsOf: directory
+                .appendingPathComponent("PhotoSorter_Cache", isDirectory: true)
+                .appendingPathComponent("manifest.json")
+        )
         let persisted = try JSONDecoder().decode(ManifestResult.self, from: persistedData)
-        try expect(persisted.clusters[0].photos[0].filename == "CHECK_IMG_1.jpg", "Marking should write updated filename to manifest.json")
+        try expect(
+            persisted.clusters[0].photos[0].filename == "CHECK_IMG_1.jpg",
+            "Marking should write updated filename to cache manifest.json"
+        )
         try expect(persisted.clusters[0].photos[0].isChecked, "Persisted filename prefix should drive checked state")
 
         let unmarked = try service.toggleMark(manifest: marked, inputDir: directory, clusterIndex: 0, photoIndex: 0)

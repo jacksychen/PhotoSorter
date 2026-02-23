@@ -19,9 +19,9 @@ def test_main_function_parses_and_runs_pipeline(tmp_path, monkeypatch):
         device="cpu",
         batch_size=2,
         pooling="cls",
-        distance_threshold=0.4,
+        distance_threshold=0.2,
         temporal_weight=0.0,
-        linkage="average",
+        linkage="complete",
     )
 
     class _FakeParser:

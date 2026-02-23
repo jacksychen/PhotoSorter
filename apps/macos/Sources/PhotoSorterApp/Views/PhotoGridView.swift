@@ -1,5 +1,72 @@
 import SwiftUI
 
+private enum GridThumbnailPipeline {
+    static let loader = ThumbnailLoader.shared
+
+    static func sourcePath(for photo: ManifestResult.Photo) -> String {
+        photo.originalPath
+    }
+
+    static func prebuildAll(
+        photos: [ManifestResult.Photo],
+        concurrency: Int,
+        inputDir: URL?
+    ) async {
+        guard !photos.isEmpty, concurrency > 0 else { return }
+
+        var orderedUniquePaths: [String] = []
+        var orderedUniqueRawPaths: [String] = []
+        orderedUniquePaths.reserveCapacity(photos.count)
+        orderedUniqueRawPaths.reserveCapacity(photos.count)
+        var seen: Set<String> = []
+
+        for photo in photos {
+            let path = sourcePath(for: photo)
+            if seen.insert(path).inserted {
+                orderedUniquePaths.append(path)
+                if ThumbnailLoader.supportsDetailProxy(for: path) {
+                    orderedUniqueRawPaths.append(path)
+                }
+            }
+        }
+
+        await runBatches(paths: orderedUniquePaths, concurrency: concurrency) { path in
+            _ = await loader.thumbnail(for: path, inputDir: inputDir)
+        }
+
+        guard let inputDir, !orderedUniqueRawPaths.isEmpty else { return }
+
+        await runBatches(paths: orderedUniqueRawPaths, concurrency: concurrency) { path in
+            _ = await loader.detailProxyURL(for: path, inputDir: inputDir)
+        }
+    }
+
+    private static func runBatches(
+        paths: [String],
+        concurrency: Int,
+        work: @escaping @Sendable (String) async -> Void
+    ) async {
+        guard !paths.isEmpty, concurrency > 0 else { return }
+
+        var start = 0
+        while start < paths.count {
+            if Task.isCancelled { return }
+            let end = min(start + concurrency, paths.count)
+            let chunk = Array(paths[start..<end])
+
+            await withTaskGroup(of: Void.self) { group in
+                for path in chunk {
+                    group.addTask {
+                        await work(path)
+                    }
+                }
+            }
+
+            start = end
+        }
+    }
+}
+
 private enum PhotoGridKeyAction: Equatable {
     case previous
     case next
@@ -23,9 +90,11 @@ private enum PhotoGridKeyAction: Equatable {
 
 struct PhotoGridView: View {
     @Environment(AppState.self) private var appState
+    @Binding var photoCardMinimumWidth: CGFloat
 
     @State private var detailWindowController: PhotoDetailWindowController? = nil
     @State private var keyEventMonitor: Any? = nil
+    @State private var thumbnailPrebuildTask: Task<Void, Never>? = nil
     @State private var pendingMarkPhotoPath: String? = nil
     @State private var markErrorMessage: String? = nil
     @State private var estimatedGridColumnCount: Int = 1
@@ -43,12 +112,12 @@ struct PhotoGridView: View {
         visiblePhotoEntries.count
     }
 
-    private let cardMinimumWidth: CGFloat = 160
     private let gridSpacing: CGFloat = 12
     private let gridPadding: CGFloat = 16
+    private let thumbnailPrebuildConcurrency: Int = 8
 
     private var columns: [GridItem] {
-        [GridItem(.adaptive(minimum: cardMinimumWidth), spacing: gridSpacing)]
+        [GridItem(.adaptive(minimum: photoCardMinimumWidth), spacing: gridSpacing)]
     }
 
     var body: some View {
@@ -66,11 +135,11 @@ struct PhotoGridView: View {
                 GeometryReader { proxy in
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: gridSpacing) {
-                            ForEach(entries.indices, id: \.self) { index in
-                                let entry = entries[index]
+                            ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                                 let photo = entry.photo
                                 PhotoCard(
                                     photo: photo,
+                                    inputDir: appState.inputDir,
                                     isSelected: index == selectedIndex,
                                     isChecked: photo.isChecked,
                                     isMarking: pendingMarkPhotoPath == photo.originalPath,
@@ -81,12 +150,12 @@ struct PhotoGridView: View {
                                 )
                                     .equatable()
                                     .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                    .onTapGesture {
-                                        selectPhoto(at: index)
-                                    }
                                     .onTapGesture(count: 2) {
                                         selectPhoto(at: index)
                                         openDetailWindow(at: index)
+                                    }
+                                    .onTapGesture {
+                                        selectPhoto(at: index)
                                     }
                             }
                         }
@@ -98,34 +167,41 @@ struct PhotoGridView: View {
                     .onChange(of: proxy.size.width) { _, newWidth in
                         updateEstimatedGridColumnCount(containerWidth: newWidth)
                     }
+                    .onChange(of: photoCardMinimumWidth) { _, _ in
+                        updateEstimatedGridColumnCount(containerWidth: proxy.size.width)
+                    }
                 }
             }
         }
         .onAppear {
             refreshVisiblePhotoEntries()
             normalizeSelectedPhotoIndexForCurrentSelection()
+            scheduleThumbnailPrebuild()
             installKeyEventMonitorIfNeeded()
         }
         .onChange(of: appState.selectedSidebarSelection) { oldSelection, newSelection in
-            if shouldResetSelectionOnClusterSwitch(
-                oldSelection: oldSelection,
-                newSelection: newSelection
-            ) {
+            // Reset selection to first photo whenever the filter changes,
+            // not just when switching between two different clusters.
+            if oldSelection != newSelection {
                 setSelectedPhotoIndexIfNeeded(0)
             }
             refreshVisiblePhotoEntries()
             normalizeSelectedPhotoIndexForCurrentSelection()
+            scheduleThumbnailPrebuild()
             syncDetailWindowToCurrentSelection()
         }
         .onChange(of: appState.manifestResult) { _, _ in
             refreshVisiblePhotoEntries()
             normalizeSelectedPhotoIndexForCurrentSelection()
+            scheduleThumbnailPrebuild()
             syncDetailWindowToCurrentSelection()
         }
         .onChange(of: appState.selectedPhotoIndex) { _, _ in
             syncDetailWindowToSelectedPhoto()
         }
         .onDisappear {
+            thumbnailPrebuildTask?.cancel()
+            thumbnailPrebuildTask = nil
             removeKeyEventMonitor()
             detailWindowController?.close()
             detailWindowController = nil
@@ -155,7 +231,7 @@ struct PhotoGridView: View {
         setSelectedPhotoIndexIfNeeded(targetIndex)
 
         if let controller = detailWindowController {
-            controller.update(photos: photos, currentIndex: targetIndex)
+            controller.update(photos: photos, currentIndex: targetIndex, inputDir: appState.inputDir)
             controller.show()
             return
         }
@@ -163,6 +239,7 @@ struct PhotoGridView: View {
         let controller = PhotoDetailWindowController(
             photos: photos,
             currentIndex: targetIndex,
+            inputDir: appState.inputDir,
             onCurrentIndexChanged: { currentIndex in
                 appState.selectedPhotoIndex = currentIndex
             },
@@ -185,7 +262,7 @@ struct PhotoGridView: View {
 
         let photos = visiblePhotos()
         let targetIndex = normalizedSelectedPhotoIndex()
-        controller.update(photos: photos, currentIndex: targetIndex)
+        controller.update(photos: photos, currentIndex: targetIndex, inputDir: appState.inputDir)
     }
 
     private func selectPhoto(at index: Int) {
@@ -211,6 +288,7 @@ struct PhotoGridView: View {
 
         let entry = visiblePhotoEntries[photoIndex]
         pendingMarkPhotoPath = entry.photo.originalPath
+        let sourcePathBeforeRename = entry.photo.originalPath
 
         Task {
             do {
@@ -222,6 +300,17 @@ struct PhotoGridView: View {
                         photoIndex: entry.photoIndex
                     )
                 }.value
+
+                let renamedPath = updatedManifest
+                    .clusters[entry.clusterIndex]
+                    .photos[entry.photoIndex]
+                    .originalPath
+
+                await GridThumbnailPipeline.loader.migrateEntry(
+                    from: sourcePathBeforeRename,
+                    to: renamedPath,
+                    inputDir: inputDir
+                )
 
                 await MainActor.run {
                     appState.manifestResult = updatedManifest
@@ -250,15 +339,6 @@ struct PhotoGridView: View {
         if appState.selectedPhotoIndex != normalized {
             appState.selectedPhotoIndex = normalized
         }
-    }
-
-    private func shouldResetSelectionOnClusterSwitch(
-        oldSelection: SidebarSelection,
-        newSelection: SidebarSelection
-    ) -> Bool {
-        guard case .cluster(let oldClusterIndex) = oldSelection else { return false }
-        guard case .cluster(let newClusterIndex) = newSelection else { return false }
-        return oldClusterIndex != newClusterIndex
     }
 
     private func syncDetailWindowToSelectedPhoto() {
@@ -345,8 +425,8 @@ struct PhotoGridView: View {
     }
 
     private func updateEstimatedGridColumnCount(containerWidth: CGFloat) {
-        let availableWidth = max(containerWidth - (gridPadding * 2), cardMinimumWidth)
-        let slot = cardMinimumWidth + gridSpacing
+        let availableWidth = max(containerWidth - (gridPadding * 2), photoCardMinimumWidth)
+        let slot = photoCardMinimumWidth + gridSpacing
         let count = Int((availableWidth + gridSpacing) / slot)
         estimatedGridColumnCount = max(count, 1)
     }
@@ -386,6 +466,24 @@ struct PhotoGridView: View {
         )
     }
 
+    private func scheduleThumbnailPrebuild() {
+        thumbnailPrebuildTask?.cancel()
+        thumbnailPrebuildTask = nil
+
+        let photos = visiblePhotos()
+        guard !photos.isEmpty else { return }
+
+        let concurrency = thumbnailPrebuildConcurrency
+
+        thumbnailPrebuildTask = Task(priority: .utility) {
+            await GridThumbnailPipeline.prebuildAll(
+                photos: photos,
+                concurrency: concurrency,
+                inputDir: appState.inputDir
+            )
+        }
+    }
+
     private func buildPhotoEntries(
         from clusters: [ManifestResult.Cluster],
         selection: SidebarSelection
@@ -417,6 +515,7 @@ struct PhotoGridView: View {
 
 struct PhotoCard: View, Equatable {
     let photo: ManifestResult.Photo
+    let inputDir: URL?
     let isSelected: Bool
     let isChecked: Bool
     let isMarking: Bool
@@ -424,9 +523,15 @@ struct PhotoCard: View, Equatable {
     let onToggleMarked: () -> Void
 
     @State private var thumbnailImage: NSImage? = nil
+    @State private var currentThumbnailRequestPath: String? = nil
+    @State private var thumbnailAspectRatio: CGFloat = 4.0 / 3.0
 
     /// Shared thumbnail loader for all cards.
-    private static let loader = ThumbnailLoader()
+    private static let loader = GridThumbnailPipeline.loader
+
+    private var thumbnailSourcePath: String {
+        GridThumbnailPipeline.sourcePath(for: photo)
+    }
 
     static func == (lhs: PhotoCard, rhs: PhotoCard) -> Bool {
         lhs.photo.id == rhs.photo.id &&
@@ -442,19 +547,17 @@ struct PhotoCard: View, Equatable {
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.12))
-                    .aspectRatio(1, contentMode: .fit)
 
                 if let image = thumbnailImage {
                     Image(nsImage: image)
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-                        .clipped()
+                        .scaledToFit()
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 } else {
                     ProgressView()
                 }
             }
+            .aspectRatio(thumbnailAspectRatio, contentMode: .fit)
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(
@@ -482,7 +585,6 @@ struct PhotoCard: View, Equatable {
                 .shadow(color: .black.opacity(0.32), radius: 1.1, x: 0, y: 1)
                 .padding(6)
             }
-            .aspectRatio(1, contentMode: .fit)
 
             Text(photo.filename)
                 .font(.caption)
@@ -491,8 +593,25 @@ struct PhotoCard: View, Equatable {
                 .frame(maxWidth: .infinity)
                 .foregroundStyle(isSelected ? .primary : .secondary)
         }
-        .task(id: photo.originalPath) {
-            thumbnailImage = await Self.loader.thumbnail(for: photo.originalPath)
+        .task(id: thumbnailSourcePath) {
+            let requestPath = thumbnailSourcePath
+            currentThumbnailRequestPath = requestPath
+            thumbnailImage = nil
+
+            let image = await Self.loader.thumbnail(for: requestPath, inputDir: inputDir)
+            guard !Task.isCancelled else { return }
+            guard currentThumbnailRequestPath == requestPath else { return }
+            if let image {
+                thumbnailAspectRatio = normalizedAspectRatio(for: image)
+            }
+            thumbnailImage = image
         }
+    }
+
+    private func normalizedAspectRatio(for image: NSImage) -> CGFloat {
+        let size = image.size
+        guard size.width > 0, size.height > 0 else { return 4.0 / 3.0 }
+        let ratio = size.width / size.height
+        return min(max(ratio, 0.2), 8.0)
     }
 }

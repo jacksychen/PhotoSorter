@@ -6,6 +6,8 @@ struct PipelineProgressView: View {
     @State private var runTask: Task<Void, Never>? = nil
     @State private var manifestLoadTask: Task<Void, Never>? = nil
 
+    private let progressStepRowCornerRadius: CGFloat = 12
+
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
@@ -15,19 +17,30 @@ struct PipelineProgressView: View {
                 .bold()
 
             // MARK: - Step list
-            List(appState.progressSteps) { stepStatus in
-                HStack(spacing: 10) {
-                    stepIcon(for: stepStatus.state)
-                        .frame(width: 20)
-                    Text(stepStatus.step.displayName)
-                        .foregroundStyle(
-                            stepStatus.state == .pending ? .secondary : .primary
-                        )
+            VStack(spacing: 8) {
+                ForEach(appState.progressSteps.indices, id: \.self) { index in
+                    let stepStatus = appState.progressSteps[index]
+
+                    HStack(spacing: 10) {
+                        stepIcon(for: stepStatus.state)
+                            .frame(width: 20)
+                        Text(stepStatus.step.displayName)
+                            .foregroundStyle(
+                                stepStatus.state == .pending ? .secondary : .primary
+                            )
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background {
+                        if index.isMultiple(of: 2) == false {
+                            RoundedRectangle(cornerRadius: progressStepRowCornerRadius, style: .continuous)
+                                .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.08))
+                        }
+                    }
                 }
             }
-            .listStyle(.inset(alternatesRowBackgrounds: true))
-            .frame(maxWidth: 360, minHeight: 220, maxHeight: 220)
-            .disabled(true)
+            .frame(maxWidth: 360)
 
             // MARK: - Detail and progress bar
             if !appState.currentDetail.isEmpty {
@@ -148,9 +161,12 @@ struct PipelineProgressView: View {
     private func handleMessage(_ message: PipelineMessage) {
         switch message.type {
         case .progress:
-            if let stepName = message.step,
-               let currentStep = StepKind(rawValue: stepName) {
-                updateStepStates(current: currentStep)
+            if let stepName = message.step {
+                if let currentStep = StepKind(rawValue: stepName) {
+                    updateStepStates(current: currentStep)
+                } else {
+                    NSLog("[PipelineProgressView] Unknown pipeline step: '%@'. The Python pipeline may have been updated.", stepName)
+                }
             }
 
             if let detail = message.detail {
@@ -176,7 +192,7 @@ struct PipelineProgressView: View {
             if let mp = message.manifestPath {
                 manifestPath = mp
             } else if let inputDir = appState.inputDir {
-                manifestPath = inputDir.appendingPathComponent("manifest.json").path
+                manifestPath = PhotoSorterCachePaths.manifestURL(for: inputDir).path
             } else {
                 appState.errorMessage = "No manifest path available."
                 return
@@ -227,5 +243,4 @@ struct PipelineProgressView: View {
             }
         }
     }
-
 }

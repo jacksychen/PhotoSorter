@@ -21,6 +21,8 @@ build/
 test_photos/
 test_photo_*/
 test_photos_linked/
+PhotoSorter_Cache/
+**/PhotoSorter_Cache/
 
 # IDE
 .idea/
@@ -29,3 +31,9 @@ test_photos_linked/
 
 # Third-party tools cloned into project
 everything-claude-code/
+
+# Local agent/codex scratch worktrees
+.claude/
+
+# Generated icon exploration assets
+apps/macos/Resources/icon-candidates/

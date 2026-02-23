@@ -241,7 +241,23 @@ struct ParameterView: View {
 
                     Divider()
 
-                    // 2. Batch Size
+                    // 2. Preprocessing
+                    inlineRow(
+                        title: "Image Preprocess",
+                        caption: "Letterbox vs TIMM strict for A/B comparison"
+                    ) {
+                        Picker("", selection: $appState.parameters.preprocess) {
+                            ForEach(PipelineParameters.PreprocessOption.allCases) { option in
+                                Text(option.label).tag(option)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                    }
+
+                    Divider()
+
+                    // 3. Batch Size
                     sliderRow(
                         title: "Batch Size",
                         caption: "Images per pass — larger uses more memory"

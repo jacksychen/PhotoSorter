@@ -4,9 +4,10 @@ import Foundation
 struct PipelineParameters {
     var device: DeviceOption = .auto
     var batchSize: Int = 16
-    var pooling: PoolingOption = .cls
-    var distanceThreshold: Double = 0.4
-    var linkage: LinkageOption = .average
+    var pooling: PoolingOption = .avg
+    var preprocess: PreprocessOption = .letterbox
+    var distanceThreshold: Double = 0.2
+    var linkage: LinkageOption = .complete
     var temporalWeight: Double = 0.0
 
     static let defaults = PipelineParameters()
@@ -31,6 +32,19 @@ struct PipelineParameters {
             case .cls:    return "CLS"
             case .avg:    return "AVG"
             case .clsAvg: return "CLS+AVG"
+            }
+        }
+    }
+
+    enum PreprocessOption: String, CaseIterable, Identifiable {
+        case letterbox
+        case timm
+
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .letterbox: return "Letterbox"
+            case .timm: return "TIMM (strict)"
             }
         }
     }

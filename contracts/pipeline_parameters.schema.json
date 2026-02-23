@@ -18,17 +18,22 @@
     "pooling": {
       "type": "string",
       "enum": ["cls", "avg", "cls+avg"],
-      "default": "cls"
+      "default": "avg"
+    },
+    "preprocess": {
+      "type": "string",
+      "enum": ["letterbox", "timm"],
+      "default": "letterbox"
     },
     "distance_threshold": {
       "type": "number",
       "exclusiveMinimum": 0,
-      "default": 0.4
+      "default": 0.2
     },
     "linkage": {
       "type": "string",
       "enum": ["average", "complete", "single"],
-      "default": "average"
+      "default": "complete"
     },
     "temporal_weight": {
       "type": "number",

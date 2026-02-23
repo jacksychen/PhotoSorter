@@ -17,8 +17,8 @@ from photosorter.ordering import build_ordered_sequence
 from photosorter.output import output_manifest
 from photosorter.pipeline import (
     PipelineArgumentError,
+    PipelineParams,
     run_pipeline_shared,
-    validate_pipeline_parameters,
 )
 from photosorter.similarity import compute_distance_matrix, compute_similarity_matrix
 from photosorter.utils import discover_images, setup_logging
@@ -37,7 +37,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--pooling", default=DEFAULTS.pooling,
         choices=("cls", "avg", "cls+avg"),
-        help="Embedding pooling: cls (semantic), avg (appearance), cls+avg (both)",
+        help="Embedding pooling: avg (model default), cls, or cls+avg",
+    )
+    p.add_argument(
+        "--preprocess",
+        default=DEFAULTS.preprocess,
+        choices=("letterbox", "timm"),
+        help="Image preprocessing: letterbox (current) or timm (strict pretrained_cfg)",
     )
 
     # Clustering
@@ -52,12 +58,18 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def _validate_args(args: argparse.Namespace) -> None:
+def _build_params(args: argparse.Namespace) -> PipelineParams:
+    """Convert parsed CLI arguments into a validated PipelineParams."""
     try:
-        validate_pipeline_parameters(
-            distance_threshold=float(args.distance_threshold),
-            temporal_weight=float(args.temporal_weight),
+        return PipelineParams(
+            input_dir=args.input_dir,
+            device=args.device,
             batch_size=int(args.batch_size),
+            pooling=args.pooling,
+            preprocess=args.preprocess,
+            distance_threshold=float(args.distance_threshold),
+            linkage=args.linkage,
+            temporal_weight=float(args.temporal_weight),
         )
     except PipelineArgumentError as exc:
         raise SystemExit(f"Error: {exc}") from exc
@@ -65,11 +77,11 @@ def _validate_args(args: argparse.Namespace) -> None:
 
 def run_pipeline(args: argparse.Namespace) -> None:
     log = setup_logging()
-    _validate_args(args)
+    params = _build_params(args)
 
     try:
         outcome = run_pipeline_shared(
-            args=args,
+            params=params,
             discover_images_fn=discover_images,
             detect_device_fn=detect_device,
             load_model_fn=load_model,

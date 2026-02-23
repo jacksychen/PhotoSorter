@@ -98,6 +98,7 @@ class TestOutputManifest:
             temporal_weight=0.1,
             linkage="complete",
             pooling="cls+avg",
+            preprocess="timm",
             batch_size=32,
             device="cuda",
         )
@@ -108,6 +109,7 @@ class TestOutputManifest:
         assert params["temporal_weight"] == 0.1
         assert params["linkage"] == "complete"
         assert params["pooling"] == "cls+avg"
+        assert params["preprocess"] == "timm"
         assert params["batch_size"] == 32
         assert params["device"] == "cuda"
 

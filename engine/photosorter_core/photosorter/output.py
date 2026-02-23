@@ -20,6 +20,7 @@ def output_manifest(
     temporal_weight: float | None = None,
     linkage: str | None = None,
     pooling: str | None = None,
+    preprocess: str | None = None,
     batch_size: int | None = None,
     device: str | None = None,
 ) -> None:
@@ -39,6 +40,7 @@ def output_manifest(
                 "temporal_weight": temporal_weight,
                 "linkage": linkage,
                 "pooling": pooling,
+                "preprocess": preprocess,
                 "batch_size": batch_size,
                 "device": device,
             }.items()

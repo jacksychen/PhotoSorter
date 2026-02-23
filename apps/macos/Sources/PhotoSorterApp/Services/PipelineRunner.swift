@@ -74,7 +74,10 @@ final class PipelineRunner: Sendable {
 
     /// The Python project root where
     /// `python -m photosorter_bridge.cli_json` should be executed.
-    private var projectRoot: URL {
+    ///
+    /// Returns `nil` if the project root cannot be located, so the
+    /// caller can report a clear error instead of silently using cwd.
+    private var projectRoot: URL? {
         // Resolve from bundle location first (works for development and packaged app).
         if let bundleURL = Bundle.main.resourceURL,
            let found = locateProjectRoot(startingAt: bundleURL) {
@@ -93,16 +96,17 @@ final class PipelineRunner: Sendable {
             return found
         }
 
-        return cwd
+        NSLog("[PipelineRunner] Could not locate project root from bundle, source file, or cwd.")
+        return nil
     }
 
-    private func processEnvironment() -> [String: String] {
+    private func processEnvironment(root: URL) -> [String: String] {
         var env = ProcessInfo.processInfo.environment
-        let bridgePath = projectRoot
+        let bridgePath = root
             .appendingPathComponent("engine")
             .appendingPathComponent("photosorter_bridge")
             .path
-        let corePath = projectRoot
+        let corePath = root
             .appendingPathComponent("engine")
             .appendingPathComponent("photosorter_core")
             .path
@@ -134,12 +138,14 @@ final class PipelineRunner: Sendable {
         #endif
 
         // Development: virtual-env Python at the project root.
-        let venvPython = projectRoot
-            .appendingPathComponent(".venv")
-            .appendingPathComponent("bin")
-            .appendingPathComponent("python")
-        if FileManager.default.isExecutableFile(atPath: venvPython.path) {
-            return venvPython
+        if let root = projectRoot {
+            let venvPython = root
+                .appendingPathComponent(".venv")
+                .appendingPathComponent("bin")
+                .appendingPathComponent("python")
+            if FileManager.default.isExecutableFile(atPath: venvPython.path) {
+                return venvPython
+            }
         }
 
         // System Python.
@@ -170,7 +176,8 @@ final class PipelineRunner: Sendable {
     /// ```
     /// python -m photosorter_bridge.cli_json run \
     ///   --input-dir <path> --device <val> --batch-size <val> \
-    ///   --pooling <val> --distance-threshold <val> --linkage <val> \
+    ///   --pooling <val> --preprocess <val> \
+    ///   --distance-threshold <val> --linkage <val> \
     ///   --temporal-weight <val>
     /// ```
     ///
@@ -186,6 +193,16 @@ final class PipelineRunner: Sendable {
                 return
             }
 
+            guard let root = projectRoot else {
+                continuation.yield(PipelineMessage(
+                    type: .error,
+                    message: "Could not locate the PhotoSorter project root. "
+                        + "Ensure the engine/ directory exists alongside the app."
+                ))
+                continuation.finish()
+                return
+            }
+
             let process = Process()
             process.executableURL = python
             process.arguments = [
@@ -194,12 +211,13 @@ final class PipelineRunner: Sendable {
                 "--device", params.device.rawValue,
                 "--batch-size", String(params.batchSize),
                 "--pooling", params.pooling.rawValue,
+                "--preprocess", params.preprocess.rawValue,
                 "--distance-threshold", String(params.distanceThreshold),
                 "--linkage", params.linkage.rawValue,
                 "--temporal-weight", String(params.temporalWeight),
             ]
-            process.currentDirectoryURL = projectRoot
-            process.environment = processEnvironment()
+            process.currentDirectoryURL = root
+            process.environment = processEnvironment(root: root)
 
             let stdoutPipe = Pipe()
             let stderrPipe = Pipe()

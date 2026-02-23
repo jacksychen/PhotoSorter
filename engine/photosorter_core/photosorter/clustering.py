@@ -23,10 +23,14 @@ def cluster(
     linkage: str = DEFAULTS.linkage,
 ) -> ClusterResult:
     n = dist.shape[0]
-    if n < 2:
-        labels = np.zeros(n, dtype=int)
+    if n == 0:
+        labels = np.zeros(0, dtype=int)
+        logger.info("No photos to cluster")
+        return ClusterResult(labels=labels, n_clusters=0)
+    if n == 1:
+        labels = np.zeros(1, dtype=int)
         logger.info("Single photo — assigned to cluster 0")
-        return ClusterResult(labels=labels, n_clusters=max(n, 0))
+        return ClusterResult(labels=labels, n_clusters=1)
 
     clusterer = AgglomerativeClustering(
         n_clusters=None,
@@ -36,5 +40,10 @@ def cluster(
     )
     labels = clusterer.fit_predict(dist)
     n_clusters = len(set(labels))
-    logger.info("Agglomerative found %d clusters (threshold=%.3f, linkage=%s)", n_clusters, distance_threshold, linkage)
+    logger.info(
+        "Agglomerative found %d clusters (threshold=%.3f, linkage=%s)",
+        n_clusters,
+        distance_threshold,
+        linkage,
+    )
     return ClusterResult(labels=labels, n_clusters=n_clusters)

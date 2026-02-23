@@ -62,7 +62,7 @@ public struct PhotoMarkingService {
         updatedManifest.clusters[clusterIndex].photos[photoIndex].filename = targetFilename
         updatedManifest.clusters[clusterIndex].photos[photoIndex].originalPath = targetURL.path
 
-        let manifestURL = inputDir.appendingPathComponent("manifest.json")
+        let manifestURL = PhotoSorterCachePaths.manifestURL(for: inputDir)
         do {
             try writeManifest(updatedManifest, to: manifestURL)
         } catch {
@@ -81,6 +81,11 @@ public struct PhotoMarkingService {
         if data.last != 0x0A {
             data.append(0x0A)
         }
+        try fileManager.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
         try data.write(to: url, options: .atomic)
     }
 

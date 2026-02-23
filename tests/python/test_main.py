@@ -9,9 +9,11 @@ import numpy as np
 import pytest
 
 from photosorter import main as main_mod
+from photosorter.cache_paths import manifest_path_for_input
 from photosorter.clustering import ClusterResult
 from photosorter.config import DEFAULTS
 from photosorter.ordering import OrderedPhoto
+from photosorter.pipeline import PipelineArgumentError, PipelineParams
 
 
 class _FakeLogger:
@@ -28,15 +30,17 @@ class _FakeLogger:
         self.records.append(("error", message % args if args else message))
 
 
-def _args(input_dir: Path, **overrides) -> argparse.Namespace:
+def _cli_args(input_dir: Path, **overrides) -> argparse.Namespace:
+    """Build a fake argparse.Namespace like the CLI parser would produce."""
     values = {
         "input_dir": input_dir,
         "device": "cpu",
         "batch_size": 4,
         "pooling": "cls",
-        "distance_threshold": 0.4,
+        "preprocess": DEFAULTS.preprocess,
+        "distance_threshold": DEFAULTS.distance_threshold,
         "temporal_weight": 0.0,
-        "linkage": "average",
+        "linkage": DEFAULTS.linkage,
     }
     values.update(overrides)
     return argparse.Namespace(**values)
@@ -49,34 +53,71 @@ def test_build_parser_defaults():
     assert args.input_dir == Path("/tmp/photos")
     assert args.batch_size == DEFAULTS.batch_size
     assert args.pooling == DEFAULTS.pooling
+    assert args.preprocess == DEFAULTS.preprocess
     assert args.distance_threshold == DEFAULTS.distance_threshold
     assert args.temporal_weight == DEFAULTS.temporal_weight
     assert args.linkage == DEFAULTS.linkage
 
 
-def test_validate_args_rejects_non_positive_threshold(tmp_path):
-    args = _args(tmp_path, distance_threshold=0.0)
-    with pytest.raises(SystemExit, match="--distance-threshold must be > 0"):
-        main_mod._validate_args(args)
+class TestBuildParams:
+    """Test _build_params converts CLI args into validated PipelineParams."""
 
+    def test_valid_args_produce_pipeline_params(self, tmp_path):
+        args = _cli_args(tmp_path, device="cpu", batch_size=8, pooling="avg")
+        params = main_mod._build_params(args)
+        assert isinstance(params, PipelineParams)
+        assert params.input_dir == tmp_path
+        assert params.device == "cpu"
+        assert params.batch_size == 8
+        assert params.pooling == "avg"
+        assert params.preprocess == DEFAULTS.preprocess
 
-def test_validate_args_rejects_negative_temporal_weight(tmp_path):
-    args = _args(tmp_path, temporal_weight=-0.1)
-    with pytest.raises(SystemExit, match="--temporal-weight must be >= 0"):
-        main_mod._validate_args(args)
+    def test_rejects_non_positive_threshold(self, tmp_path):
+        args = _cli_args(tmp_path, distance_threshold=0.0)
+        with pytest.raises(SystemExit, match="--distance-threshold must be > 0"):
+            main_mod._build_params(args)
 
+    def test_rejects_threshold_above_upper_bound(self, tmp_path):
+        args = _cli_args(tmp_path, distance_threshold=2.5)
+        with pytest.raises(SystemExit, match="--distance-threshold must be <= 2.0"):
+            main_mod._build_params(args)
 
-def test_validate_args_rejects_invalid_batch_size(tmp_path):
-    args = _args(tmp_path, batch_size=0)
-    with pytest.raises(SystemExit, match="--batch-size must be >= 1"):
-        main_mod._validate_args(args)
+    def test_rejects_negative_temporal_weight(self, tmp_path):
+        args = _cli_args(tmp_path, temporal_weight=-0.1)
+        with pytest.raises(SystemExit, match="--temporal-weight must be >= 0"):
+            main_mod._build_params(args)
+
+    def test_rejects_invalid_batch_size(self, tmp_path):
+        args = _cli_args(tmp_path, batch_size=0)
+        with pytest.raises(SystemExit, match="--batch-size must be >= 1"):
+            main_mod._build_params(args)
+
+    def test_rejects_invalid_pooling(self, tmp_path):
+        args = _cli_args(tmp_path, pooling="bad")
+        with pytest.raises(SystemExit, match="--pooling must be one of"):
+            main_mod._build_params(args)
+
+    def test_rejects_invalid_linkage(self, tmp_path):
+        args = _cli_args(tmp_path, linkage="ward")
+        with pytest.raises(SystemExit, match="--linkage must be one of"):
+            main_mod._build_params(args)
+
+    def test_rejects_invalid_preprocess(self, tmp_path):
+        args = _cli_args(tmp_path, preprocess="bad")
+        with pytest.raises(SystemExit, match="--preprocess must be one of"):
+            main_mod._build_params(args)
+
+    def test_rejects_invalid_device(self, tmp_path):
+        args = _cli_args(tmp_path, device="tpu")
+        with pytest.raises(SystemExit, match="--device must be one of"):
+            main_mod._build_params(args)
 
 
 def test_run_pipeline_exits_when_input_dir_missing(tmp_path, monkeypatch):
     fake_log = _FakeLogger()
     monkeypatch.setattr(main_mod, "setup_logging", lambda: fake_log)
 
-    args = _args(tmp_path / "missing")
+    args = _cli_args(tmp_path / "missing")
     with pytest.raises(SystemExit) as exc:
         main_mod.run_pipeline(args)
 
@@ -89,7 +130,7 @@ def test_run_pipeline_exits_when_no_images(tmp_path, monkeypatch):
     monkeypatch.setattr(main_mod, "setup_logging", lambda: fake_log)
     monkeypatch.setattr(main_mod, "discover_images", lambda _input_dir: [])
 
-    args = _args(tmp_path)
+    args = _cli_args(tmp_path)
     with pytest.raises(SystemExit) as exc:
         main_mod.run_pipeline(args)
 
@@ -153,11 +194,12 @@ def test_run_pipeline_happy_path_with_skipped_images(tmp_path, monkeypatch):
     monkeypatch.setattr(main_mod, "build_ordered_sequence", fake_build_ordered_sequence)
     monkeypatch.setattr(main_mod, "output_manifest", fake_output_manifest)
 
-    args = _args(
+    args = _cli_args(
         tmp_path,
         device="auto",
         batch_size=8,
         pooling="cls+avg",
+        preprocess="timm",
         distance_threshold=0.55,
         temporal_weight=0.25,
         linkage="complete",
@@ -170,12 +212,13 @@ def test_run_pipeline_happy_path_with_skipped_images(tmp_path, monkeypatch):
     assert original_indices == [0, 2]
 
     _, manifest_path, manifest_kwargs = calls["output_manifest"]
-    assert manifest_path == tmp_path / DEFAULTS.manifest_filename
+    assert manifest_path == manifest_path_for_input(tmp_path)
     assert manifest_kwargs["input_dir"] == tmp_path
     assert manifest_kwargs["distance_threshold"] == 0.55
     assert manifest_kwargs["temporal_weight"] == 0.25
     assert manifest_kwargs["linkage"] == "complete"
     assert manifest_kwargs["pooling"] == "cls+avg"
+    assert manifest_kwargs["preprocess"] == "timm"
     assert manifest_kwargs["batch_size"] == 8
     assert manifest_kwargs["device"] == "cpu"
     assert any(level == "warning" and "Skipped 1 unreadable images" in message for level, message in fake_log.records)
@@ -219,9 +262,9 @@ def test_run_pipeline_happy_path_without_skipped_images(tmp_path, monkeypatch):
 
     monkeypatch.setattr(main_mod, "output_manifest", fake_output_manifest)
 
-    args = _args(tmp_path)
+    args = _cli_args(tmp_path)
     main_mod.run_pipeline(args)
 
-    assert output_calls["path"] == tmp_path / DEFAULTS.manifest_filename
+    assert output_calls["path"] == manifest_path_for_input(tmp_path)
     assert len(output_calls["ordered"]) == 2
     assert not any(level == "warning" and "Skipped" in message for level, message in fake_log.records)

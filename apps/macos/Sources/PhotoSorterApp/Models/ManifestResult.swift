@@ -33,6 +33,7 @@ public struct ManifestResult: Codable, Sendable, Equatable {
         public var temporalWeight: Double?
         public var linkage: String?
         public var pooling: String?
+        public var preprocess: String?
         public var batchSize: Int?
         public var device: String?
 
@@ -41,6 +42,7 @@ public struct ManifestResult: Codable, Sendable, Equatable {
             temporalWeight: Double? = nil,
             linkage: String? = nil,
             pooling: String? = nil,
+            preprocess: String? = nil,
             batchSize: Int? = nil,
             device: String? = nil
         ) {
@@ -48,6 +50,7 @@ public struct ManifestResult: Codable, Sendable, Equatable {
             self.temporalWeight = temporalWeight
             self.linkage = linkage
             self.pooling = pooling
+            self.preprocess = preprocess
             self.batchSize = batchSize
             self.device = device
         }
@@ -55,7 +58,7 @@ public struct ManifestResult: Codable, Sendable, Equatable {
         public enum CodingKeys: String, CodingKey {
             case distanceThreshold = "distance_threshold"
             case temporalWeight = "temporal_weight"
-            case linkage, pooling
+            case linkage, pooling, preprocess
             case batchSize = "batch_size"
             case device
         }
