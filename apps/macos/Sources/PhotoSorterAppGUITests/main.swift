@@ -52,6 +52,23 @@ private func makeSinglePhotoManifest(in directory: URL, filename: String = "IMG_
 }
 
 @MainActor
+private func packageRootURL() -> URL {
+    URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent() // PhotoSorterAppGUITests
+        .deletingLastPathComponent() // Sources
+        .deletingLastPathComponent() // apps/macos
+}
+
+@MainActor
+private func assertFileContains(_ fileURL: URL, _ expectedSnippet: String) throws {
+    let contents = try String(contentsOf: fileURL, encoding: .utf8)
+    try expect(
+        contents.contains(expectedSnippet),
+        "Expected \(fileURL.lastPathComponent) to contain: \(expectedSnippet)"
+    )
+}
+
+@MainActor
 private func testKeyActionMapping() throws {
     try expect(PhotoDetailKeyAction.from(keyCode: 123) == .previous, "Left key should map to previous")
     try expect(PhotoDetailKeyAction.from(keyCode: 124) == .next, "Right key should map to next")
@@ -271,6 +288,104 @@ private func testPhotoMarkingServiceRenameFailure() throws {
     }
 }
 
+@MainActor
+private func testLocalizationResourceFilesContainChineseEntries() throws {
+    let packageRoot = packageRootURL()
+
+    let uiStrings = packageRoot
+        .appendingPathComponent("Sources", isDirectory: true)
+        .appendingPathComponent("PhotoSorterApp", isDirectory: true)
+        .appendingPathComponent("Resources", isDirectory: true)
+        .appendingPathComponent("zh-Hans.lproj", isDirectory: true)
+        .appendingPathComponent("Localizable.strings")
+
+    let appStrings = packageRoot
+        .appendingPathComponent("Sources", isDirectory: true)
+        .appendingPathComponent("PhotoSorterAppMain", isDirectory: true)
+        .appendingPathComponent("Resources", isDirectory: true)
+        .appendingPathComponent("zh-Hans.lproj", isDirectory: true)
+        .appendingPathComponent("Localizable.strings")
+
+    try expect(FileManager.default.fileExists(atPath: uiStrings.path), "UI Localizable.strings should exist")
+    try expect(FileManager.default.fileExists(atPath: appStrings.path), "App Localizable.strings should exist")
+
+    try assertFileContains(uiStrings, "\"Welcome\" = \"欢迎使用\";")
+    try assertFileContains(uiStrings, "\"Processing...\" = \"处理中...\";")
+    try assertFileContains(uiStrings, "\"Cluster %d\" = \"分组 %d\";")
+    try assertFileContains(uiStrings, "\"Failed to persist manifest.json: %@\" = \"写入 manifest.json 失败：%@\";")
+
+    try assertFileContains(appStrings, "\"About Photo Sorter\" = \"关于照片整理器\";")
+}
+
+@MainActor
+private func testPipelineProgressMessageLocalizerChineseMappings() throws {
+    try expect(
+        PipelineProgressMessageLocalizer.localizedDetail("Discovering images…") == "正在扫描图片…",
+        "Known detail should be localized to Chinese"
+    )
+    try expect(
+        PipelineProgressMessageLocalizer.localizedDetail("Found 12 images") == "已发现 12 张图片",
+        "Detail with image count should be localized"
+    )
+    try expect(
+        PipelineProgressMessageLocalizer.localizedDetail("3 clusters found") == "已发现 3 个分组",
+        "Detail with cluster count should be localized"
+    )
+    try expect(
+        PipelineProgressMessageLocalizer.localizedDetail("7/42") == "7/42",
+        "Batch progress detail should remain passthrough"
+    )
+
+    try expect(
+        PipelineProgressMessageLocalizer.localizedErrorMessage("Input directory does not exist: /tmp/照片")
+            == "输入文件夹不存在：/tmp/照片",
+        "Missing directory error should be localized"
+    )
+    try expect(
+        PipelineProgressMessageLocalizer.localizedErrorMessage("No images found in /tmp/空目录")
+            == "在 /tmp/空目录 中未找到图片",
+        "No images error should be localized"
+    )
+    try expect(
+        PipelineProgressMessageLocalizer.localizedErrorMessage("No images could be loaded successfully")
+            == "没有任何图片被成功加载",
+        "Image load failure should be localized"
+    )
+    try expect(
+        PipelineProgressMessageLocalizer.localizedErrorMessage("torch backend failed")
+            == "torch backend failed",
+        "Unknown errors should pass through unchanged"
+    )
+}
+
+@MainActor
+private func testPhotoMarkingErrorsLocalizedButKeepFileNamesEnglish() throws {
+    try expect(
+        PhotoMarkingError.missingInputDirectory.localizedDescription == "未选择输入文件夹。",
+        "Missing input directory message should be localized"
+    )
+    try expect(
+        PhotoMarkingError.invalidSelection.localizedDescription == "无效的照片选择。",
+        "Invalid selection message should be localized"
+    )
+
+    let conflict = PhotoMarkingError.filenameConflict("CHECK_IMG_1.jpg").localizedDescription
+    try expect(
+        conflict == "目标文件名已存在：CHECK_IMG_1.jpg",
+        "Conflict message should be localized while preserving filename"
+    )
+
+    let writeFailure = PhotoMarkingError.manifestWriteFailed("permission denied").localizedDescription
+    try expect(
+        writeFailure.contains("manifest.json"),
+        "manifest filename should remain English in localized error text"
+    )
+    try expect(
+        !writeFailure.contains("清单.json"),
+        "Localized message must not translate manifest filename"
+    )
+}
+
 @main
 struct PhotoSorterAppGUITests {
     private static let allTests: [(String, @MainActor () throws -> Void)] = [
@@ -281,6 +396,9 @@ struct PhotoSorterAppGUITests {
         ("Photo marking persists rename + manifest", testPhotoMarkingServiceToggleAndManifestPersistence),
         ("Photo marking conflict guard", testPhotoMarkingServiceConflictDoesNotRename),
         ("Photo marking rename failure", testPhotoMarkingServiceRenameFailure),
+        ("Localization resources (zh-Hans)", testLocalizationResourceFilesContainChineseEntries),
+        ("Pipeline progress localizer (zh-Hans)", testPipelineProgressMessageLocalizerChineseMappings),
+        ("Photo marking errors localized but filenames unchanged", testPhotoMarkingErrorsLocalizedButKeepFileNamesEnglish),
     ]
 
     @MainActor

@@ -43,7 +43,13 @@ struct ClusterSidebar: View {
                     .tag(SidebarSelection.checkedPhotos)
 
                 ForEach(Array(clusters.enumerated()), id: \.element.id) { index, cluster in
-                    Text("Cluster \(cluster.clusterId)")
+                    Text(
+                        String(
+                            format: String(localized: "Cluster %d", bundle: .appResources),
+                            locale: .current,
+                            cluster.clusterId
+                        )
+                    )
                         .badge(cluster.count)
                         .tag(SidebarSelection.cluster(index))
                 }

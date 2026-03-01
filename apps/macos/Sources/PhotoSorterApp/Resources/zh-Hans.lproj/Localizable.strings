@@ -1,0 +1,98 @@
+"Photo Sorter" = "照片整理器";
+"Welcome" = "欢迎使用";
+"Organize photos by visual similarity" = "按视觉相似度整理照片";
+"Choose Folder…" = "选择文件夹…";
+"Release to open" = "松开以打开";
+"Loading manifest…" = "正在加载清单…";
+"Drop a folder here" = "将文件夹拖到这里";
+
+"Clustering Parameters" = "聚类参数";
+"Fine-tune how your photos are grouped" = "微调照片分组方式";
+"Basic" = "基础";
+"Cluster Granularity" = "聚类粒度";
+"Lower = more groups, higher = fewer" = "越小分组越多，越大分组越少";
+"Temporal Weight" = "时间权重";
+"How much shooting time affects grouping" = "拍摄时间对分组的影响程度";
+"Feature Aggregation" = "特征聚合";
+"How image features are extracted" = "图像特征的聚合方式";
+"Cluster Linkage" = "聚类连接策略";
+"Strategy for merging similar groups" = "合并相似组的策略";
+"Advanced" = "高级";
+"Compute Device" = "计算设备";
+"Hardware for feature extraction" = "用于特征提取的硬件";
+"Image Preprocess" = "图像预处理";
+"Letterbox vs TIMM strict for A/B comparison" = "用于 A/B 对比：Letterbox 或 TIMM 严格模式";
+"Batch Size" = "批大小";
+"Images per pass — larger uses more memory" = "每次处理的图片数，越大占用内存越多";
+"Back" = "返回";
+"Start Clustering" = "开始聚类";
+
+"Processing..." = "处理中...";
+"No folder selected. Please go back and choose a folder." = "未选择文件夹。请返回并选择一个文件夹。";
+"Pipeline ended unexpectedly. Please check logs and try again." = "处理流程异常结束，请检查日志后重试。";
+"No manifest path available." = "没有可用的 manifest 路径。";
+"Failed to load manifest: %@" = "加载 manifest 失败：%@";
+"An unknown error occurred." = "发生未知错误。";
+
+"Discovering images" = "扫描图片";
+"Loading model" = "加载模型";
+"Extracting embeddings" = "提取特征";
+"Computing similarity" = "计算相似度";
+"Clustering" = "聚类中";
+"Writing manifest" = "写入清单";
+
+"Discovering images…" = "正在扫描图片…";
+"Loading DINOv3 model…" = "正在加载 DINOv3 模型…";
+"Model loaded" = "模型已加载";
+"Extracting embeddings…" = "正在提取特征…";
+"Embeddings extracted" = "特征提取完成";
+"Computing similarity matrix…" = "正在计算相似度矩阵…";
+"Distance matrix ready" = "距离矩阵已就绪";
+"Clustering…" = "正在聚类…";
+"Writing manifest…" = "正在写入清单…";
+"Manifest written" = "清单已写入";
+"Found %d images" = "已发现 %d 张图片";
+"%d clusters found" = "已发现 %d 个分组";
+
+"Input directory does not exist: %@" = "输入文件夹不存在：%@";
+"No images found in %@" = "在 %@ 中未找到图片";
+"No images could be loaded successfully" = "没有任何图片被成功加载";
+
+"Re-cluster" = "重新聚类";
+"All Photos" = "全部照片";
+"Checked Photos" = "已标记照片";
+"Cluster %d" = "分组 %d";
+"Clusters" = "分组";
+
+"Decrease preview card size" = "减小预览卡片尺寸";
+"Increase preview card size" = "增大预览卡片尺寸";
+
+"No Photos" = "没有照片";
+"Select a filter from the sidebar." = "请先在侧边栏选择筛选条件。";
+"Marking Failed" = "标记失败";
+"OK" = "好";
+"Unknown error" = "未知错误";
+
+"Could not open folder: %@" = "无法打开文件夹：%@";
+"Existing manifest.json in PhotoSorter_Cache could not be read and will be overwritten." = "已存在的 PhotoSorter_Cache/manifest.json 无法读取，后续将被覆盖。";
+
+"Auto" = "自动";
+"Apple GPU" = "Apple GPU";
+"CPU" = "CPU";
+"Letterbox" = "Letterbox";
+"TIMM (strict)" = "TIMM（严格）";
+"Average" = "平均";
+"Complete" = "完全";
+"Single" = "单链";
+
+"No input directory selected." = "未选择输入文件夹。";
+"Invalid photo selection." = "无效的照片选择。";
+"Target filename already exists: %@" = "目标文件名已存在：%@";
+"Failed to rename photo: %@" = "重命名照片失败：%@";
+"Failed to persist manifest.json: %@" = "写入 manifest.json 失败：%@";
+" Rollback failed: %@" = " 回滚也失败：%@";
+
+"Could not locate a Python executable. Ensure a .venv exists at the project root or python3 is in PATH." = "未找到可用的 Python 可执行文件。请确认项目根目录存在 .venv，或 PATH 中可用 python3。";
+"Failed to launch pipeline process: %@" = "启动处理流程进程失败：%@";
+"Could not locate the PhotoSorter project root. Ensure the engine/ directory exists alongside the app." = "无法定位 PhotoSorter 项目根目录。请确认 app 同级目录存在 engine/。";
+"Pipeline exited with status %d." = "处理流程异常退出（状态码 %d）。";

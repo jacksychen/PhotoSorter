@@ -100,7 +100,11 @@ struct FolderSelectView: View {
                 guard let url = urls.first else { return }
                 handleFolder(url)
             case .failure(let error):
-                appState.errorMessage = "Could not open folder: \(error.localizedDescription)"
+                appState.errorMessage = String(
+                    format: String(localized: "Could not open folder: %@", bundle: .appResources),
+                    locale: .current,
+                    error.localizedDescription
+                )
             }
         }
     }
@@ -163,7 +167,10 @@ struct FolderSelectView: View {
                 if let manifest {
                     applyExistingManifest(manifest)
                 } else if FileManager.default.fileExists(atPath: manifestURL.path) {
-                    appState.errorMessage = "Existing manifest.json in PhotoSorter_Cache could not be read and will be overwritten."
+                    appState.errorMessage = String(
+                        localized: "Existing manifest.json in PhotoSorter_Cache could not be read and will be overwritten.",
+                        bundle: .appResources
+                    )
                     appState.phase = .parameters
                 } else {
                     appState.phase = .parameters

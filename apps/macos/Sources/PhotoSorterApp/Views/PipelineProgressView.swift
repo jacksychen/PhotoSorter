@@ -119,7 +119,10 @@ struct PipelineProgressView: View {
         manifestLoadTask = nil
 
         guard let inputDir = appState.inputDir else {
-            appState.errorMessage = "No folder selected. Please go back and choose a folder."
+            appState.errorMessage = String(
+                localized: "No folder selected. Please go back and choose a folder.",
+                bundle: .appResources
+            )
             return
         }
 
@@ -150,7 +153,10 @@ struct PipelineProgressView: View {
             if !receivedComplete && !receivedError {
                 await MainActor.run {
                     if appState.phase == .progress, appState.errorMessage == nil {
-                        appState.errorMessage = "Pipeline ended unexpectedly. Please check logs and try again."
+                        appState.errorMessage = String(
+                            localized: "Pipeline ended unexpectedly. Please check logs and try again.",
+                            bundle: .appResources
+                        )
                     }
                 }
             }
@@ -170,7 +176,7 @@ struct PipelineProgressView: View {
             }
 
             if let detail = message.detail {
-                appState.currentDetail = detail
+                appState.currentDetail = PipelineProgressMessageLocalizer.localizedDetail(detail)
             }
 
             if let processed = message.processed {
@@ -194,7 +200,7 @@ struct PipelineProgressView: View {
             } else if let inputDir = appState.inputDir {
                 manifestPath = PhotoSorterCachePaths.manifestURL(for: inputDir).path
             } else {
-                appState.errorMessage = "No manifest path available."
+                appState.errorMessage = String(localized: "No manifest path available.", bundle: .appResources)
                 return
             }
 
@@ -216,12 +222,19 @@ struct PipelineProgressView: View {
                 } catch {
                     guard !Task.isCancelled else { return }
                     guard appState.phase == .progress else { return }
-                    appState.errorMessage = "Failed to load manifest: \(error.localizedDescription)"
+                    appState.errorMessage = String(
+                        format: String(localized: "Failed to load manifest: %@", bundle: .appResources),
+                        locale: .current,
+                        error.localizedDescription
+                    )
                 }
             }
 
         case .error:
-            appState.errorMessage = message.message ?? "An unknown error occurred."
+            let fallback = String(localized: "An unknown error occurred.", bundle: .appResources)
+            appState.errorMessage = PipelineProgressMessageLocalizer.localizedErrorMessage(
+                message.message ?? fallback
+            )
         }
     }
 
@@ -243,4 +256,5 @@ struct PipelineProgressView: View {
             }
         }
     }
+
 }

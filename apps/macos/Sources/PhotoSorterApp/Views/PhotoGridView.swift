@@ -209,7 +209,7 @@ struct PhotoGridView: View {
         .alert("Marking Failed", isPresented: markErrorPresentedBinding) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(markErrorMessage ?? "Unknown error")
+            Text(markErrorMessage ?? String(localized: "Unknown error", bundle: .appResources))
         }
     }
 

@@ -17,9 +17,12 @@ struct PipelineParameters {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .auto: return "Auto"
-            case .mps:  return "Apple GPU"
-            case .cpu:  return "CPU"
+            case .auto:
+                return String(localized: "Auto", bundle: .appResources)
+            case .mps:
+                return String(localized: "Apple GPU", bundle: .appResources)
+            case .cpu:
+                return String(localized: "CPU", bundle: .appResources)
             }
         }
     }
@@ -43,8 +46,10 @@ struct PipelineParameters {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .letterbox: return "Letterbox"
-            case .timm: return "TIMM (strict)"
+            case .letterbox:
+                return String(localized: "Letterbox", bundle: .appResources)
+            case .timm:
+                return String(localized: "TIMM (strict)", bundle: .appResources)
             }
         }
     }
@@ -52,6 +57,15 @@ struct PipelineParameters {
     enum LinkageOption: String, CaseIterable, Identifiable {
         case average, complete, single
         var id: String { rawValue }
-        var label: String { rawValue.capitalized }
+        var label: String {
+            switch self {
+            case .average:
+                return String(localized: "Average", bundle: .appResources)
+            case .complete:
+                return String(localized: "Complete", bundle: .appResources)
+            case .single:
+                return String(localized: "Single", bundle: .appResources)
+            }
+        }
     }
 }

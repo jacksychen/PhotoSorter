@@ -14,12 +14,18 @@ enum StepKind: String, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .discover:   return "Discovering images"
-        case .model:      return "Loading model"
-        case .embed:      return "Extracting embeddings"
-        case .similarity: return "Computing similarity"
-        case .cluster:    return "Clustering"
-        case .output:     return "Writing manifest"
+        case .discover:
+            return String(localized: "Discovering images", bundle: .appResources)
+        case .model:
+            return String(localized: "Loading model", bundle: .appResources)
+        case .embed:
+            return String(localized: "Extracting embeddings", bundle: .appResources)
+        case .similarity:
+            return String(localized: "Computing similarity", bundle: .appResources)
+        case .cluster:
+            return String(localized: "Clustering", bundle: .appResources)
+        case .output:
+            return String(localized: "Writing manifest", bundle: .appResources)
         }
     }
 }

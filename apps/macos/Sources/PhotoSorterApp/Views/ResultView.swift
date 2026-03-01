@@ -61,7 +61,7 @@ struct ResultView: View {
 
     private func photoPreviewSizeButton(
         systemName: String,
-        helpText: String,
+        helpText: LocalizedStringKey,
         isDisabled: Bool,
         action: @escaping () -> Void
     ) -> some View {
@@ -73,7 +73,7 @@ struct ResultView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(isDisabled ? Color.secondary.opacity(0.55) : Color.primary)
-        .help(helpText)
+        .help(Text(helpText))
         .disabled(isDisabled)
     }
 

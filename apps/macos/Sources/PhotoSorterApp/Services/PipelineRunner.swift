@@ -8,9 +8,16 @@ enum PipelineRunnerError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .pythonNotFound:
-            return "Could not locate a Python executable. Ensure a .venv exists at the project root or python3 is in PATH."
+            return String(
+                localized: "Could not locate a Python executable. Ensure a .venv exists at the project root or python3 is in PATH.",
+                bundle: .appResources
+            )
         case .processLaunchFailed(let reason):
-            return "Failed to launch pipeline process: \(reason)"
+            return String(
+                format: String(localized: "Failed to launch pipeline process: %@", bundle: .appResources),
+                locale: .current,
+                reason
+            )
         }
     }
 }
@@ -196,8 +203,10 @@ final class PipelineRunner: Sendable {
             guard let root = projectRoot else {
                 continuation.yield(PipelineMessage(
                     type: .error,
-                    message: "Could not locate the PhotoSorter project root. "
-                        + "Ensure the engine/ directory exists alongside the app."
+                    message: String(
+                        localized: "Could not locate the PhotoSorter project root. Ensure the engine/ directory exists alongside the app.",
+                        bundle: .appResources
+                    )
                 ))
                 continuation.finish()
                 return
@@ -315,7 +324,11 @@ final class PipelineRunner: Sendable {
                 if !Task.isCancelled, status != 0, !sawErrorMessage {
                     let stderrText = stderrCollector.text()
                     let fallback = stderrText.isEmpty
-                        ? "Pipeline exited with status \(status)."
+                        ? String(
+                            format: String(localized: "Pipeline exited with status %d.", bundle: .appResources),
+                            locale: .current,
+                            status
+                        )
                         : stderrText
                     continuation.yield(PipelineMessage(type: .error, message: fallback))
                 }

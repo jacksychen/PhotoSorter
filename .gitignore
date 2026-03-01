@@ -37,3 +37,6 @@ everything-claude-code/
 
 # Generated icon exploration assets
 apps/macos/Resources/icon-candidates/
+
+# Standalone Python cache (python-build-standalone tarballs)
+.cache/

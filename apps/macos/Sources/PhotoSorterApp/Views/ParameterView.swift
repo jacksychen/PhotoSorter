@@ -290,8 +290,8 @@ struct ParameterView: View {
     /// Slider row: label row on top, full-width slider below — ensures all sliders align.
     @ViewBuilder
     private func sliderRow<S: View, T: View>(
-        title: String,
-        caption: String,
+        title: LocalizedStringKey,
+        caption: LocalizedStringKey,
         @ViewBuilder slider: () -> S,
         @ViewBuilder trailing: () -> T
     ) -> some View {
@@ -314,8 +314,8 @@ struct ParameterView: View {
     /// Inline row: label on the left, compact control (picker) on the right.
     @ViewBuilder
     private func inlineRow<Control: View>(
-        title: String,
-        caption: String,
+        title: LocalizedStringKey,
+        caption: LocalizedStringKey,
         @ViewBuilder control: () -> Control
     ) -> some View {
         HStack(alignment: .center, spacing: 12) {

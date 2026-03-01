@@ -10,15 +10,27 @@ public enum PhotoMarkingError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .missingInputDirectory:
-            return "No input directory selected."
+            return String(localized: "No input directory selected.", bundle: .appResources)
         case .invalidSelection:
-            return "Invalid photo selection."
+            return String(localized: "Invalid photo selection.", bundle: .appResources)
         case .filenameConflict(let name):
-            return "Target filename already exists: \(name)"
+            return String(
+                format: String(localized: "Target filename already exists: %@", bundle: .appResources),
+                locale: .current,
+                name
+            )
         case .renameFailed(let reason):
-            return "Failed to rename photo: \(reason)"
+            return String(
+                format: String(localized: "Failed to rename photo: %@", bundle: .appResources),
+                locale: .current,
+                reason
+            )
         case .manifestWriteFailed(let reason):
-            return "Failed to persist manifest.json: \(reason)"
+            return String(
+                format: String(localized: "Failed to persist manifest.json: %@", bundle: .appResources),
+                locale: .current,
+                reason
+            )
         }
     }
 }
@@ -67,7 +79,13 @@ public struct PhotoMarkingService {
             try writeManifest(updatedManifest, to: manifestURL)
         } catch {
             let rollbackError = rollbackRename(from: targetURL, to: sourceURL)
-            let rollbackSuffix = rollbackError.map { " Rollback failed: \($0.localizedDescription)" } ?? ""
+            let rollbackSuffix = rollbackError.map {
+                String(
+                    format: String(localized: " Rollback failed: %@", bundle: .appResources),
+                    locale: .current,
+                    $0.localizedDescription
+                )
+            } ?? ""
             throw PhotoMarkingError.manifestWriteFailed(error.localizedDescription + rollbackSuffix)
         }
 

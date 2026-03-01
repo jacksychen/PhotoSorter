@@ -9,7 +9,7 @@ final class PhotoSorterAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let app = NSApplication.shared
-        ProcessInfo.processInfo.processName = "Photo Sorter"
+        ProcessInfo.processInfo.processName = String(localized: "Photo Sorter", bundle: .appResources)
         app.setActivationPolicy(.regular)
     }
 
@@ -24,7 +24,7 @@ struct PhotoSorterApp: App {
     @State private var appState = AppState()
 
     private func showAboutPanel() {
-        let credits = NSAttributedString(string: "Author: chenshengyi")
+        let credits = NSAttributedString(string: String(localized: "Author: chenshengyi", bundle: .appResources))
         NSApplication.shared.activate(ignoringOtherApps: true)
         NSApplication.shared.orderFrontStandardAboutPanel(options: [
             .credits: credits,
