@@ -298,7 +298,7 @@ actor ThumbnailLoader {
         case .detailProxy:
             directory = PhotoSorterCachePaths.detailProxyDirectory(for: inputDir)
         }
-        return directory.appendingPathComponent(pathHash(path)).appendingPathExtension("jpg")
+        return directory.appendingPathComponent(pathHash(path)).appendingPathExtension("cache")
     }
 
     private static func migratePreviewFile(from oldPath: String, to newPath: String, tier: PreviewCacheTier, inputDir: URL) {
@@ -324,6 +324,7 @@ actor ThumbnailLoader {
         } catch {
             // Best-effort cache migration; callers should continue without failing rename flow.
         }
+
     }
 
     private static func pathHash(_ path: String) -> String {
